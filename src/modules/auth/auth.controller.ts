@@ -44,7 +44,15 @@ export class AuthController {
   ): Promise<{ accessToken: string }> {
     return this.authService.refresh(dto.refreshToken);
   }
-  // B-07: POST /auth/logout
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Invalidate a refresh token' })
+  @ApiResponse({ status: 200, description: 'Logged out successfully' })
+  async logout(@Body() dto: RefreshTokenDto): Promise<{ message: string }> {
+    await this.authService.logout(dto.refreshToken);
+    return { message: 'Logged out successfully' };
+  }
   // B-08: GET  /auth/google
   // B-08: GET  /auth/google/callback
 }

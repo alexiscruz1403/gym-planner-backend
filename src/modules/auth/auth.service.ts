@@ -150,8 +150,6 @@ export class AuthService {
     return { ...tokens, user: this.toResponseDto(user) };
   }
 
-  // ─── Placeholders (implemented in upcoming tasks) ───────────────────────────
-
   async refresh(refreshToken: string): Promise<{ accessToken: string }> {
     // Step 1 — verify the token is structurally valid and not expired
     let payload: { sub: string; email: string };
@@ -213,8 +211,32 @@ export class AuthService {
     return { accessToken };
   }
 
-  async logout(_refreshToken: string): Promise<void> {
-    throw new Error('Not implemented yet — see B-07');
+  async logout(refreshToken: string): Promise<void> {
+    // Step 1 — verify the token is structurally valid
+    // We do this before touching the DB to avoid unnecessary queries
+    let payload: { sub: string };
+    try {
+      payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      });
+    } catch {
+      // If the token is invalid or expired we still return 200 —
+      // from the client's perspective the session is gone either way
+      return;
+    }
+
+    // Step 2 — find and delete the matching stored token
+    const storedTokens = await this.refreshTokenModel
+      .find({ userId: new Types.ObjectId(payload.sub) })
+      .exec();
+
+    for (const stored of storedTokens) {
+      const isMatch = await bcrypt.compare(refreshToken, stored.tokenHash);
+      if (isMatch) {
+        await this.refreshTokenModel.findByIdAndDelete(stored._id).exec();
+        break;
+      }
+    }
   }
 
   async findOrCreate(_googleProfile: unknown): Promise<unknown> {
