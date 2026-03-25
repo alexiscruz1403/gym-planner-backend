@@ -3,11 +3,11 @@ import { IsEmail, IsString, IsNotEmpty } from 'class-validator';
 
 export class LoginDto {
   @ApiProperty({ example: 'usuario@email.com' })
-  @IsEmail()
+  @IsEmail({}, { message: 'Email must have a valid format' })
   email: string;
 
   @ApiProperty({ example: 'MiPassword123!' })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'Password must be a character string' })
+  @IsNotEmpty({ message: 'Password must not be empty' })
   password: string;
 }

@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
@@ -14,6 +15,7 @@ import {
   RefreshTokenDocument,
 } from '../../schemas/refresh-token.schema';
 import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 
@@ -76,10 +78,9 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  // ─── Register ───────────────────────────────────────────────────────────────
+  // ─── Methods ───────────────────────────
 
   async register(dto: RegisterDto): Promise<AuthResponseDto> {
-    // Check if email already exists
     const existingByEmail = await this.userModel
       .findOne({ email: dto.email.toLowerCase() })
       .exec();
@@ -117,11 +118,39 @@ export class AuthService {
     return { ...tokens, user: this.toResponseDto(user) };
   }
 
-  // ─── Placeholders (implemented in upcoming tasks) ───────────────────────────
+  async login(dto: LoginDto): Promise<AuthResponseDto> {
+    // Explicitly select passwordHash — it has select: false in the schema
+    // so it never comes back in normal queries
+    const user = await this.userModel
+      .findOne({ email: dto.email.toLowerCase() })
+      .select('+passwordHash')
+      .exec();
 
-  async login(_dto: unknown): Promise<unknown> {
-    throw new Error('Not implemented yet — see B-05');
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // OAuth-only user trying to login with password
+    if (!user.passwordHash) {
+      throw new BadRequestException(
+        'This account uses Google Sign-In. Please log in with Google.',
+      );
+    }
+
+    const passwordMatches = await bcrypt.compare(
+      dto.password,
+      user.passwordHash,
+    );
+    if (!passwordMatches) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const tokens = await this.generateTokens(user._id.toString(), user.email);
+
+    return { ...tokens, user: this.toResponseDto(user) };
   }
+
+  // ─── Placeholders (implemented in upcoming tasks) ───────────────────────────
 
   async refresh(_refreshToken: string): Promise<unknown> {
     throw new Error('Not implemented yet — see B-06');
