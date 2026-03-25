@@ -239,7 +239,64 @@ export class AuthService {
     }
   }
 
-  async findOrCreate(_googleProfile: unknown): Promise<unknown> {
-    throw new Error('Not implemented yet — see B-13');
+  async findOrCreate(googleProfile: {
+    googleId: string;
+    email: string;
+    username: string;
+  }): Promise<AuthResponseDto> {
+    // Step 1 — look up by googleId first (fastest path for returning users)
+    let user = await this.userModel
+      .findOne({ googleId: googleProfile.googleId })
+      .exec();
+
+    if (user) {
+      const tokens = await this.generateTokens(user._id.toString(), user.email);
+      return { ...tokens, user: this.toResponseDto(user) };
+    }
+
+    // Step 2 — look up by email (user may have registered with email/password first)
+    const existingByEmail = await this.userModel
+      .findOne({ email: googleProfile.email.toLowerCase() })
+      .exec();
+
+    if (existingByEmail) {
+      // Email exists but belongs to an email/password account — do not merge silently
+      if (existingByEmail.passwordHash && !existingByEmail.googleId) {
+        throw new BadRequestException(
+          'This email is already registered with a password. Please log in with email and password.',
+        );
+      }
+
+      // Edge case: email exists with googleId already — return tokens normally
+      const tokens = await this.generateTokens(
+        existingByEmail._id.toString(),
+        existingByEmail.email,
+      );
+      return { ...tokens, user: this.toResponseDto(existingByEmail) };
+    }
+
+    // Step 3 — new user, create account without passwordHash
+    // Generate a unique username — Google displayName may already be taken
+    const baseUsername = googleProfile.username
+      .toLowerCase()
+      .replace(/\s+/g, '')
+      .slice(0, 15);
+
+    let username = baseUsername;
+    let attempts = 0;
+
+    while (await this.userModel.findOne({ username }).exec()) {
+      attempts++;
+      username = `${baseUsername}${attempts}`;
+    }
+
+    user = await this.userModel.create({
+      email: googleProfile.email.toLowerCase(),
+      username,
+      googleId: googleProfile.googleId,
+    });
+
+    const tokens = await this.generateTokens(user._id.toString(), user.email);
+    return { ...tokens, user: this.toResponseDto(user) };
   }
 }

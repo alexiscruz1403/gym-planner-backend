@@ -1,5 +1,17 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Req,
+  Res,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import type { Request, Response } from 'express';
+import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -58,6 +70,33 @@ export class AuthController {
     await this.authService.logout(dto.refreshToken);
     return { message: 'Logged out successfully' };
   }
-  // B-08: GET  /auth/google
-  // B-08: GET  /auth/google/callback
+
+  @Public()
+  @UseGuards(AuthGuard('google'))
+  @Get('google')
+  @ApiOperation({ summary: 'Initiate Google OAuth flow' })
+  googleAuth(): void {
+    // Passport redirects to Google automatically — this method body never executes
+  }
+
+  @Public()
+  @UseGuards(AuthGuard('google'))
+  @Get('google/callback')
+  @ApiOperation({ summary: 'Google OAuth callback' })
+  async googleCallback(
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    // At this point Passport has already called GoogleStrategy.validate()
+    // and attached the result to req.user
+    const authResult = req.user as AuthResponseDto;
+
+    // Redirect to frontend with tokens as query params.
+    // The frontend reads them from the URL, stores them and removes them
+    // from the address bar immediately.
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3001';
+    res.redirect(
+      `${frontendUrl}/auth/callback?accessToken=${authResult.accessToken}&refreshToken=${authResult.refreshToken}`,
+    );
+  }
 }
