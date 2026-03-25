@@ -3,20 +3,20 @@ import * as Joi from 'joi';
 export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test', 'local')
-    .default('development'),
+    .default('local'),
 
   PORT: Joi.number().default(3000),
 
   // MongoDB
   MONGODB_URI: Joi.string().required(),
 
-  // JWT
+  // JWT — secrets must be long enough to be secure
   JWT_SECRET: Joi.string().min(32).required(),
   JWT_REFRESH_SECRET: Joi.string().min(32).required(),
-  JWT_EXPIRATION: Joi.number().default(900),
-  JWT_REFRESH_EXPIRATION: Joi.number().default(604800),
+  JWT_EXPIRATION: Joi.number().default(900), // 15 min in seconds
+  JWT_REFRESH_EXPIRATION: Joi.number().default(604800), // 7 days in seconds
 
-  // Google OAuth — requeridas solo en production para no bloquear el desarrollo
+  // Google OAuth — optional in local/development, required in production
   GOOGLE_CLIENT_ID: Joi.string().when('NODE_ENV', {
     is: 'production',
     then: Joi.required(),
@@ -33,7 +33,7 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.optional(),
   }),
 
-  // Cloudinary — mismo criterio que OAuth
+  // Cloudinary — optional in local/development, required in production
   CLOUDINARY_CLOUD_NAME: Joi.string().when('NODE_ENV', {
     is: 'production',
     then: Joi.required(),
