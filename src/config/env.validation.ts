@@ -49,4 +49,6 @@ export const envValidationSchema = Joi.object({
     then: Joi.required(),
     otherwise: Joi.optional(),
   }),
+
+  FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
 });
