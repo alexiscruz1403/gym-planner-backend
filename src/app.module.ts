@@ -4,6 +4,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { envValidationSchema } from './config/env.validation';
 import { getDatabaseConfig } from './config/database.config';
 import { AuthModule } from './modules/auth/auth.module';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './common/guards';
 
 @Module({
   imports: [
@@ -22,6 +24,14 @@ import { AuthModule } from './modules/auth/auth.module';
     }),
 
     AuthModule,
+  ],
+  providers: [
+    // Global JWT guard — protects all routes by default.
+    // Use @Public() on any route that should be open.
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
   ],
 })
 export class AppModule {}
