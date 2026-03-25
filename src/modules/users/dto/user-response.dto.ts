@@ -1,24 +1,29 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UserResponseDto {
-  @ApiProperty()
+  @ApiProperty({ example: '661f1b2c3d4e5f6a7b8c9d0e' })
   id: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'usuario@email.com' })
   email: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'miusuario' })
   username: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({
+    example:
+      'https://res.cloudinary.com/gym-planner/image/upload/avatars/abc123.jpg',
+    required: false,
+    nullable: true,
+  })
   avatar?: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 0 })
   followersCount: number;
 
-  @ApiProperty()
+  @ApiProperty({ example: 0 })
   followingCount: number;
 
-  @ApiProperty()
+  @ApiProperty({ example: '2024-01-01T00:00:00.000Z' })
   createdAt: Date;
 }
