@@ -9,7 +9,7 @@ export class User {
   email: string;
 
   // Optional — absent for OAuth users who never set a password
-  @Prop({ required: false })
+  @Prop({ required: false, select: false })
   passwordHash?: string;
 
   @Prop({ required: true, unique: true, trim: true })
@@ -29,6 +29,12 @@ export class User {
 
   @Prop({ default: 0 })
   followingCount: number;
+
+  @Prop({ type: Date })
+  createdAt: Date;
+
+  @Prop({ type: Date })
+  updatedAt: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
