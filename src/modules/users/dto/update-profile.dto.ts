@@ -5,7 +5,9 @@ export class UpdateProfileDto {
   @ApiProperty({
     required: false,
     example: 'nuevonombre',
-    description: 'Username must be between 3 and 20 characters',
+    description: 'Between 3 and 20 characters',
+    minLength: 3,
+    maxLength: 20,
   })
   @IsOptional()
   @IsString()
