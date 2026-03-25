@@ -9,12 +9,14 @@ import { User, UserDocument } from '../../schemas/user.schema';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { AuthService } from '../auth/auth.service';
+import { UploadService } from './upload.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly authService: AuthService,
+    private readonly uploadService: UploadService,
   ) {}
 
   async findById(id: string): Promise<UserResponseDto> {
@@ -40,6 +42,21 @@ export class UsersService {
 
     const user = await this.userModel
       .findByIdAndUpdate(id, dto, { new: true })
+      .exec();
+
+    if (!user) throw new NotFoundException('User not found');
+
+    return this.authService.toResponseDto(user);
+  }
+
+  async uploadAvatar(
+    id: string,
+    file: Express.Multer.File,
+  ): Promise<UserResponseDto> {
+    const avatarUrl = await this.uploadService.uploadAvatar(file);
+
+    const user = await this.userModel
+      .findByIdAndUpdate(id, { avatar: avatarUrl }, { new: true })
       .exec();
 
     if (!user) throw new NotFoundException('User not found');
