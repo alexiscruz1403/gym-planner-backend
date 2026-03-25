@@ -2,6 +2,7 @@ import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 
@@ -33,7 +34,16 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
-  // B-06: POST /auth/refresh
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Issue a new access token using a refresh token' })
+  @ApiResponse({ status: 200, description: 'Returns a new access token' })
+  @ApiResponse({ status: 401, description: 'Invalid or revoked refresh token' })
+  async refresh(
+    @Body() dto: RefreshTokenDto,
+  ): Promise<{ accessToken: string }> {
+    return this.authService.refresh(dto.refreshToken);
+  }
   // B-07: POST /auth/logout
   // B-08: GET  /auth/google
   // B-08: GET  /auth/google/callback

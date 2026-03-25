@@ -152,8 +152,65 @@ export class AuthService {
 
   // ─── Placeholders (implemented in upcoming tasks) ───────────────────────────
 
-  async refresh(_refreshToken: string): Promise<unknown> {
-    throw new Error('Not implemented yet — see B-06');
+  async refresh(refreshToken: string): Promise<{ accessToken: string }> {
+    // Step 1 — verify the token is structurally valid and not expired
+    let payload: { sub: string; email: string };
+    try {
+      payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    // Step 2 — find all stored tokens for this user and check if any matches
+    // We can't query by token directly because we only store the hash
+    const storedTokens = await this.refreshTokenModel
+      .find({ userId: new Types.ObjectId(payload.sub) })
+      .exec();
+
+    let matchedToken: RefreshTokenDocument | null = null;
+    for (const stored of storedTokens) {
+      const isMatch = await bcrypt.compare(refreshToken, stored.tokenHash);
+      if (isMatch) {
+        matchedToken = stored;
+        break;
+      }
+    }
+
+    if (!matchedToken) {
+      throw new UnauthorizedException('Refresh token has been revoked');
+    }
+
+    // Step 3 — rotate: delete the used token and issue a new one
+    // This limits the attack window if a refresh token is stolen —
+    // using it once invalidates it immediately
+    await this.refreshTokenModel.findByIdAndDelete(matchedToken._id).exec();
+
+    const tokenHash = await bcrypt.hash(refreshToken, BCRYPT_ROUNDS);
+    const expiresAt = new Date(
+      Date.now() +
+        this.configService.get<number>('JWT_REFRESH_EXPIRATION')! * 1000,
+    );
+
+    await this.refreshTokenModel.create({
+      userId: new Types.ObjectId(payload.sub),
+      tokenHash,
+      expiresAt,
+    });
+
+    // Step 4 — issue a new access token only
+    // The refresh token itself is reused (rotation keeps the same token value,
+    // just re-persists its hash with a fresh TTL)
+    const accessToken = this.jwtService.sign(
+      { sub: payload.sub, email: payload.email },
+      {
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: this.configService.get<number>('JWT_EXPIRATION'),
+      },
+    );
+
+    return { accessToken };
   }
 
   async logout(_refreshToken: string): Promise<void> {
