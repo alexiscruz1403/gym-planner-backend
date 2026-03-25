@@ -21,6 +21,12 @@ export class RegisterDto {
 
   // IsStrongPassword enforces: min 8 chars, 1 uppercase, 1 number, 1 symbol
   @ApiProperty({ example: 'MiPassword123!' })
-  @IsStrongPassword()
+  @IsStrongPassword(
+    {},
+    {
+      message:
+        'La contraseña debe tener al menos 8 caracteres, una mayúscula, un número y un símbolo',
+    },
+  )
   password: string;
 }
