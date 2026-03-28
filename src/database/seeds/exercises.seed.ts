@@ -287,7 +287,6 @@ async function main(): Promise<void> {
   }
 
   await mongoose.connect(mongoUri);
-  console.log('Connected to MongoDB');
 
   const ExerciseModel = mongoose.model('Exercise', ExerciseSchema);
 
@@ -304,7 +303,6 @@ async function main(): Promise<void> {
   console.log(`Inserted ${result.length} exercises into the catalog`);
 
   await mongoose.disconnect();
-  console.log('Done');
 }
 
 main().catch((err) => {
