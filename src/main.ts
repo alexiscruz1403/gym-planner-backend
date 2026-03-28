@@ -51,6 +51,7 @@ async function bootstrap() {
       )
       .addTag('Auth', 'Registration, login, logout and token management')
       .addTag('Users', 'User profile and avatar management')
+      .addTag('Exercises', 'Exercise catalog — search and admin management')
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
