@@ -10,6 +10,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -20,6 +21,8 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 import { Public } from 'src/common/decorators';
 
 @ApiTags('Auth')
+// Stricter rate limit for auth endpoints: 10 requests per 60 seconds per IP
+@Throttle({ global: { ttl: 60000, limit: 10 } })
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
