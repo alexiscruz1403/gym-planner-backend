@@ -24,6 +24,13 @@ export class User {
   @Prop({ required: false, index: { sparse: true, unique: true } })
   googleId?: string;
 
+  @Prop({
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user',
+  })
+  role: 'user' | 'admin';
+
   @Prop({ default: 0 })
   followersCount: number;
 

@@ -49,8 +49,9 @@ export class AuthService {
   private async generateTokens(
     userId: string,
     email: string,
+    role: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const payload = { sub: userId, email };
+    const payload = { sub: userId, email, role };
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
@@ -113,7 +114,11 @@ export class AuthService {
       passwordHash,
     });
 
-    const tokens = await this.generateTokens(user._id.toString(), user.email);
+    const tokens = await this.generateTokens(
+      user._id.toString(),
+      user.email,
+      user.role,
+    );
 
     return { ...tokens, user: this.toResponseDto(user) };
   }
@@ -145,7 +150,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const tokens = await this.generateTokens(user._id.toString(), user.email);
+    const tokens = await this.generateTokens(
+      user._id.toString(),
+      user.email,
+      user.role,
+    );
 
     return { ...tokens, user: this.toResponseDto(user) };
   }
@@ -250,7 +259,11 @@ export class AuthService {
       .exec();
 
     if (user) {
-      const tokens = await this.generateTokens(user._id.toString(), user.email);
+      const tokens = await this.generateTokens(
+        user._id.toString(),
+        user.email,
+        user.role,
+      );
       return { ...tokens, user: this.toResponseDto(user) };
     }
 
@@ -271,6 +284,7 @@ export class AuthService {
       const tokens = await this.generateTokens(
         existingByEmail._id.toString(),
         existingByEmail.email,
+        existingByEmail.role,
       );
       return { ...tokens, user: this.toResponseDto(existingByEmail) };
     }
@@ -296,7 +310,11 @@ export class AuthService {
       googleId: googleProfile.googleId,
     });
 
-    const tokens = await this.generateTokens(user._id.toString(), user.email);
+    const tokens = await this.generateTokens(
+      user._id.toString(),
+      user.email,
+      user.role,
+    );
     return { ...tokens, user: this.toResponseDto(user) };
   }
 }
