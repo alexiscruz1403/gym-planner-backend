@@ -1,0 +1,100 @@
+import { Type } from 'class-transformer';
+import {
+  IsString,
+  IsEnum,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsUUID,
+  IsArray,
+  ValidateNested,
+  MinLength,
+  MaxLength,
+  Min,
+  ArrayUnique,
+  IsMongoId,
+  ValidateIf,
+} from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { DayOfWeek } from '../../../common/enums/day-of-week.enum';
+
+export class CreateExerciseConfigDto {
+  @ApiProperty({ description: 'Exercise ID from the catalog' })
+  @IsMongoId()
+  exerciseId: string;
+
+  @ApiProperty({ minimum: 1 })
+  @IsInt()
+  @Min(1)
+  sets: number;
+
+  @ApiPropertyOptional({
+    description: 'Number of repetitions. Required if duration is absent.',
+  })
+  @ValidateIf((o: CreateExerciseConfigDto) => !o.duration)
+  @IsInt()
+  @Min(1)
+  reps?: number;
+
+  @ApiPropertyOptional({
+    description: 'Duration in seconds. Required if reps is absent.',
+  })
+  @ValidateIf((o: CreateExerciseConfigDto) => !o.reps)
+  @IsInt()
+  @Min(1)
+  duration?: number;
+
+  @ApiPropertyOptional({
+    description: 'Weight in kg. Optional for bodyweight exercises.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  weight?: number;
+
+  @ApiProperty({ description: 'Rest between sets in seconds', minimum: 0 })
+  @IsInt()
+  @Min(0)
+  rest: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'UUID shared between exercises that form a superset',
+  })
+  @IsOptional()
+  @IsUUID()
+  supersetGroupId?: string;
+}
+
+export class CreatePlanDayDto {
+  @ApiProperty({ enum: DayOfWeek })
+  @IsEnum(DayOfWeek)
+  dayOfWeek: DayOfWeek;
+
+  @ApiPropertyOptional({ type: [CreateExerciseConfigDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateExerciseConfigDto)
+  exercises?: CreateExerciseConfigDto[];
+}
+
+export class CreateWorkoutPlanDto {
+  @ApiProperty({ minLength: 1, maxLength: 100 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  name: string;
+
+  @ApiPropertyOptional({ type: [CreatePlanDayDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique((day: CreatePlanDayDto) => day.dayOfWeek)
+  @ValidateNested({ each: true })
+  @Type(() => CreatePlanDayDto)
+  days?: CreatePlanDayDto[];
+}

@@ -9,6 +9,7 @@ import { JwtAuthGuard } from './common/guards';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ExercisesModule } from './modules/exercises/exercises.module';
+import { WorkoutPlansModule } from './modules/workout-plans/workout-plans.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { ExercisesModule } from './modules/exercises/exercises.module';
     AuthModule,
     UsersModule,
     ExercisesModule,
+    WorkoutPlansModule,
   ],
   providers: [
     // Global JWT guard — protects all routes by default.
