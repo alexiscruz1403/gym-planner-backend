@@ -5,7 +5,6 @@ import {
   IsInt,
   IsNumber,
   IsOptional,
-  IsUUID,
   IsArray,
   ValidateNested,
   MinLength,
@@ -63,10 +62,14 @@ export class CreateExerciseConfigDto {
   notes?: string;
 
   @ApiPropertyOptional({
-    description: 'UUID shared between exercises that form a superset',
+    description:
+      'Identifier shared between exercises that form a superset. Any short string is valid (e.g. "A", "B", "push").',
+    example: 'A',
   })
   @IsOptional()
-  @IsUUID()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
   supersetGroupId?: string;
 }
 
