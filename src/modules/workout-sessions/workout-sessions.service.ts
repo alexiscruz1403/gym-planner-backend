@@ -244,6 +244,23 @@ export class WorkoutSessionsService {
     };
   }
 
+  // ─── Cancel Session ───────────────────────────────────────────────────────────
+
+  async cancelActiveSession(userId: string): Promise<{ message: string }> {
+    const deleted = await this.sessionModel
+      .findOneAndDelete({
+        userId: new Types.ObjectId(userId),
+        status: SessionStatus.IN_PROGRESS,
+      })
+      .exec();
+
+    if (!deleted) {
+      throw new NotFoundException('No active session found');
+    }
+
+    return { message: 'Session cancelled successfully' };
+  }
+
   // ─── Read Operations ──────────────────────────────────────────────────────────
 
   async getActiveSession(userId: string): Promise<WorkoutSessionDocument> {

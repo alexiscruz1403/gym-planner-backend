@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Patch,
+  Delete,
   Body,
   Param,
   HttpCode,
@@ -52,6 +53,19 @@ export class WorkoutSessionsController {
   @ApiResponse({ status: 404, description: 'No active session found' })
   getActiveSession(@CurrentUser() user: JwtPayload) {
     return this.workoutSessionsService.getActiveSession(user.sub);
+  }
+
+  // NOTE: must remain before /:id for the same routing reason as GET /active
+  @Delete('active')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Cancel the active session — deletes it from the database entirely. Use when the user started a session by mistake.',
+  })
+  @ApiResponse({ status: 200, description: 'Session cancelled successfully' })
+  @ApiResponse({ status: 404, description: 'No active session found' })
+  cancelActiveSession(@CurrentUser() user: JwtPayload) {
+    return this.workoutSessionsService.cancelActiveSession(user.sub);
   }
 
   @Get(':id')
