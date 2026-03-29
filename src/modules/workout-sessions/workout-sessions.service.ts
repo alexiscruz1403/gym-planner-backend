@@ -218,6 +218,12 @@ export class WorkoutSessionsService {
       (finishedAt.getTime() - session.startedAt.getTime()) / 1000,
     );
 
+    // Strip exercises with no logged sets before persisting.
+    // Exercises the user never touched carry no value in history or stats.
+    session.exercises = session.exercises.filter(
+      (e) => e.sets.length > 0,
+    ) as typeof session.exercises;
+
     const exercisesCompleted = session.exercises.filter((e) =>
       e.sets.some((s) => s.completed),
     ).length;
@@ -230,6 +236,7 @@ export class WorkoutSessionsService {
     session.status = dto.status as SessionStatus;
     session.finishedAt = finishedAt;
     session.durationSeconds = durationSeconds;
+    session.markModified('exercises');
 
     await session.save();
 
