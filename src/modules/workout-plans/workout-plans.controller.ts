@@ -22,7 +22,7 @@ import {
   WorkoutPlanResponseDto,
   WorkoutPlanSummaryDto,
 } from './dto/workout-plan-response.dto';
-import { CurrentUser, JwtPayload } from '../../common/decorators';
+import { CurrentUser, type JwtPayload } from '../../common/decorators';
 
 @ApiTags('Workout Plans')
 @ApiBearerAuth('access-token')
