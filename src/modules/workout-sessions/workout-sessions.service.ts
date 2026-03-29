@@ -55,15 +55,14 @@ export class WorkoutSessionsService {
       );
     }
 
-    // 3. Abandon any existing in_progress session for this user
+    // 3. Delete any existing in_progress session for this user.
+    // Abandoned sessions carry no statistical value — deleting keeps the
+    // collection clean and avoids polluting last-performance queries.
     await this.sessionModel
-      .findOneAndUpdate(
-        {
-          userId: new Types.ObjectId(userId),
-          status: SessionStatus.IN_PROGRESS,
-        },
-        { $set: { status: SessionStatus.ABANDONED, finishedAt: new Date() } },
-      )
+      .findOneAndDelete({
+        userId: new Types.ObjectId(userId),
+        status: SessionStatus.IN_PROGRESS,
+      })
       .exec();
 
     // 4. Build exercises snapshot from the plan day
