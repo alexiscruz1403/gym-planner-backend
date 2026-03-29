@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Patch,
+  Delete,
   Body,
   Param,
   HttpCode,
@@ -17,7 +18,7 @@ import {
 import { WorkoutSessionsService } from './workout-sessions.service';
 import { StartSessionDto } from './dto/start-session.dto';
 import { LogSetDto } from './dto/log-set.dto';
-import { ModifyExerciseDto } from './dto/modify-exercise.dto';
+import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 import { FinishSessionDto } from './dto/finish-session.dto';
 import { CurrentUser, type JwtPayload } from '../../common/decorators';
 
@@ -52,6 +53,19 @@ export class WorkoutSessionsController {
   @ApiResponse({ status: 404, description: 'No active session found' })
   getActiveSession(@CurrentUser() user: JwtPayload) {
     return this.workoutSessionsService.getActiveSession(user.sub);
+  }
+
+  // NOTE: must remain before /:id for the same routing reason as GET /active
+  @Delete('active')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Cancel the active session — deletes it from the database entirely. Use when the user started a session by mistake.',
+  })
+  @ApiResponse({ status: 200, description: 'Session cancelled successfully' })
+  @ApiResponse({ status: 404, description: 'No active session found' })
+  cancelActiveSession(@CurrentUser() user: JwtPayload) {
+    return this.workoutSessionsService.cancelActiveSession(user.sub);
   }
 
   @Get(':id')
@@ -90,25 +104,28 @@ export class WorkoutSessionsController {
   @Patch(':id/exercises/:exerciseId')
   @ApiOperation({
     summary:
-      'Modify exercise config within the session (does not affect the plan)',
+      'Replace an exercise in the session with a different one from the catalog. The slot position and superset group are preserved. Previously logged sets for the original exercise are discarded.',
   })
-  @ApiResponse({ status: 200, description: 'Exercise modified successfully' })
+  @ApiResponse({ status: 200, description: 'Exercise replaced successfully' })
   @ApiResponse({
     status: 403,
     description: 'Session does not belong to the authenticated user',
   })
-  @ApiResponse({ status: 404, description: 'Session not found' })
+  @ApiResponse({
+    status: 404,
+    description: 'Session not found or new exercise not in catalog',
+  })
   @ApiResponse({
     status: 422,
-    description: 'Session not in progress or exercise not found',
+    description: 'Session not in progress or original exercise not found',
   })
-  modifyExercise(
+  replaceExercise(
     @Param('id') id: string,
     @Param('exerciseId') exerciseId: string,
-    @Body() dto: ModifyExerciseDto,
+    @Body() dto: ReplaceExerciseDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.workoutSessionsService.modifyExercise(
+    return this.workoutSessionsService.replaceExercise(
       id,
       exerciseId,
       user.sub,

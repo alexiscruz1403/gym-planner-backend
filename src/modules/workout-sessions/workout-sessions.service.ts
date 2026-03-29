@@ -16,10 +16,11 @@ import {
   WorkoutPlan,
   WorkoutPlanDocument,
 } from '../../schemas/workout-plan.schema';
+import { Exercise, ExerciseDocument } from '../../schemas/exercise.schema';
 import { SessionStatus } from '../../common/enums/session-status.enum';
 import { StartSessionDto } from './dto/start-session.dto';
 import { LogSetDto } from './dto/log-set.dto';
-import { ModifyExerciseDto } from './dto/modify-exercise.dto';
+import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 import { FinishSessionDto } from './dto/finish-session.dto';
 
 @Injectable()
@@ -29,6 +30,8 @@ export class WorkoutSessionsService {
     private readonly sessionModel: Model<WorkoutSessionDocument>,
     @InjectModel(WorkoutPlan.name)
     private readonly workoutPlanModel: Model<WorkoutPlanDocument>,
+    @InjectModel(Exercise.name)
+    private readonly exerciseModel: Model<ExerciseDocument>,
   ) {}
 
   // ─── Start Session ────────────────────────────────────────────────────────────
@@ -55,15 +58,14 @@ export class WorkoutSessionsService {
       );
     }
 
-    // 3. Abandon any existing in_progress session for this user
+    // 3. Delete any existing in_progress session for this user.
+    // Abandoned sessions carry no statistical value — deleting keeps the
+    // collection clean and avoids polluting last-performance queries.
     await this.sessionModel
-      .findOneAndUpdate(
-        {
-          userId: new Types.ObjectId(userId),
-          status: SessionStatus.IN_PROGRESS,
-        },
-        { $set: { status: SessionStatus.ABANDONED, finishedAt: new Date() } },
-      )
+      .findOneAndDelete({
+        userId: new Types.ObjectId(userId),
+        status: SessionStatus.IN_PROGRESS,
+      })
       .exec();
 
     // 4. Build exercises snapshot from the plan day
@@ -154,46 +156,71 @@ export class WorkoutSessionsService {
     };
   }
 
-  // ─── Modify Exercise ──────────────────────────────────────────────────────────
+  // ─── Replace Exercise ─────────────────────────────────────────────────────────
+  // Replaces one exercise in the session with a different one from the catalog.
+  // The original exercise slot (orderIndex, supersetGroupId) is preserved.
+  // Any sets previously logged for the original exercise are discarded —
+  // the user is switching exercises, not editing what they already did.
 
-  async modifyExercise(
+  async replaceExercise(
     sessionId: string,
     exerciseId: string,
     userId: string,
-    dto: ModifyExerciseDto,
+    dto: ReplaceExerciseDto,
   ): Promise<Omit<SessionExercise, 'sets'>> {
     const session = await this.findSessionAndVerifyOwnership(sessionId, userId);
     this.assertInProgress(session);
 
-    const exercise = session.exercises.find(
+    const exerciseIndex = session.exercises.findIndex(
       (e) => e.exerciseId.toString() === exerciseId,
     );
 
-    if (!exercise) {
+    if (exerciseIndex === -1) {
       throw new UnprocessableEntityException(
         `Exercise ${exerciseId} not found in this session`,
       );
     }
 
-    // Merge only the provided fields — existing sets[] are untouched
-    if (dto.plannedSets !== undefined) exercise.plannedSets = dto.plannedSets;
-    if (dto.plannedReps !== undefined) exercise.plannedReps = dto.plannedReps;
-    if (dto.plannedDuration !== undefined)
-      exercise.plannedDuration = dto.plannedDuration;
-    if (dto.plannedWeight !== undefined)
-      exercise.plannedWeight = dto.plannedWeight;
-    if (dto.plannedRest !== undefined) exercise.plannedRest = dto.plannedRest;
+    // Resolve new exercise from the catalog
+    const newExercise = await this.exerciseModel
+      .findOne({ _id: new Types.ObjectId(dto.newExerciseId), isActive: true })
+      .select('_id name')
+      .exec();
 
-    exercise.modifiedDuringSession = true;
+    if (!newExercise) {
+      throw new NotFoundException(
+        `Exercise ${dto.newExerciseId} not found in the catalog or is inactive`,
+      );
+    }
 
+    const original = session.exercises[exerciseIndex];
+
+    // Build the replacement preserving slot position and superset membership.
+    // Planned config uses dto values if provided, otherwise falls back to
+    // the original exercise's planned values.
+    const replacement: SessionExercise = {
+      exerciseId: newExercise._id as Types.ObjectId,
+      exerciseName: newExercise.name,
+      orderIndex: original.orderIndex,
+      supersetGroupId: original.supersetGroupId,
+      plannedSets: dto.plannedSets ?? original.plannedSets,
+      plannedReps: dto.plannedReps ?? original.plannedReps,
+      plannedDuration: dto.plannedDuration ?? original.plannedDuration,
+      plannedWeight: dto.plannedWeight ?? original.plannedWeight,
+      plannedRest: dto.plannedRest ?? original.plannedRest,
+      sets: [],
+      modifiedDuringSession: true,
+    };
+
+    session.exercises[exerciseIndex] =
+      replacement as (typeof session.exercises)[number];
     session.markModified('exercises');
     await session.save();
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { sets: _sets, ...exerciseWithoutSets } =
-      exercise as unknown as SessionExercise;
+    const { sets: _sets, ...replacementWithoutSets } = replacement;
 
-    return exerciseWithoutSets;
+    return replacementWithoutSets;
   }
 
   // ─── Finish Session ───────────────────────────────────────────────────────────
@@ -219,6 +246,12 @@ export class WorkoutSessionsService {
       (finishedAt.getTime() - session.startedAt.getTime()) / 1000,
     );
 
+    // Strip exercises with no logged sets before persisting.
+    // Exercises the user never touched carry no value in history or stats.
+    session.exercises = session.exercises.filter(
+      (e) => e.sets.length > 0,
+    ) as typeof session.exercises;
+
     const exercisesCompleted = session.exercises.filter((e) =>
       e.sets.some((s) => s.completed),
     ).length;
@@ -231,6 +264,7 @@ export class WorkoutSessionsService {
     session.status = dto.status as SessionStatus;
     session.finishedAt = finishedAt;
     session.durationSeconds = durationSeconds;
+    session.markModified('exercises');
 
     await session.save();
 
@@ -243,6 +277,23 @@ export class WorkoutSessionsService {
       exercisesCompleted,
       totalSetsLogged,
     };
+  }
+
+  // ─── Cancel Session ───────────────────────────────────────────────────────────
+
+  async cancelActiveSession(userId: string): Promise<{ message: string }> {
+    const deleted = await this.sessionModel
+      .findOneAndDelete({
+        userId: new Types.ObjectId(userId),
+        status: SessionStatus.IN_PROGRESS,
+      })
+      .exec();
+
+    if (!deleted) {
+      throw new NotFoundException('No active session found');
+    }
+
+    return { message: 'Session cancelled successfully' };
   }
 
   // ─── Read Operations ──────────────────────────────────────────────────────────

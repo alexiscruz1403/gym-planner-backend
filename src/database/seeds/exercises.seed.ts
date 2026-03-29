@@ -12,24 +12,11 @@
 import mongoose from 'mongoose';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { Exercise, ExerciseSchema } from '../../schemas/exercise.schema';
 
 dotenv.config({
   path: path.resolve(process.cwd(), `.env.${process.env.NODE_ENV ?? 'local'}`),
 });
-
-const ExerciseSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    musclesPrimary: [{ type: String }],
-    musclesSecondary: [{ type: String }],
-    loadType: { type: String, required: true },
-    bilateral: { type: Boolean, default: true },
-    gifUrl: { type: String },
-    videoUrl: { type: String },
-    isActive: { type: Boolean, default: true },
-  },
-  { timestamps: true },
-);
 
 const EXERCISES = [
   // ── Chest (5) ──────────────────────────────────────────────────────────────
@@ -288,7 +275,7 @@ async function main(): Promise<void> {
 
   await mongoose.connect(mongoUri);
 
-  const ExerciseModel = mongoose.model('Exercise', ExerciseSchema);
+  const ExerciseModel = mongoose.model(Exercise.name, ExerciseSchema);
 
   const existingCount = await ExerciseModel.countDocuments().exec();
   if (existingCount > 0) {
