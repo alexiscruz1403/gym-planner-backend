@@ -11,6 +11,7 @@ import { UsersModule } from './modules/users/users.module';
 import { ExercisesModule } from './modules/exercises/exercises.module';
 import { WorkoutPlansModule } from './modules/workout-plans/workout-plans.module';
 import { WorkoutSessionsModule } from './modules/workout-sessions/workout-sessions.module';
+import { StatsModule } from './modules/stats/stats.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { WorkoutSessionsModule } from './modules/workout-sessions/workout-sessio
     ExercisesModule,
     WorkoutPlansModule,
     WorkoutSessionsModule,
+    StatsModule,
   ],
   providers: [
     // Global JWT guard — protects all routes by default.
