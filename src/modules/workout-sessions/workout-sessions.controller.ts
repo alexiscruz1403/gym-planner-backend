@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import { StartSessionDto } from './dto/start-session.dto';
 import { LogSetDto } from './dto/log-set.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 import { FinishSessionDto } from './dto/finish-session.dto';
+import { HistoryQueryDto } from './dto/history-query.dto';
 import { CurrentUser, type JwtPayload } from '../../common/decorators';
 
 @ApiTags('Workout Sessions')
@@ -29,6 +31,21 @@ export class WorkoutSessionsController {
   constructor(
     private readonly workoutSessionsService: WorkoutSessionsService,
   ) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'Get paginated history of past sessions (completed and partial)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated session history returned',
+  })
+  getSessionHistory(
+    @Query() query: HistoryQueryDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.workoutSessionsService.getSessionHistory(user.sub, query);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
