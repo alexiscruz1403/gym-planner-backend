@@ -52,4 +52,25 @@ export class StatsController {
   ) {
     return this.statsService.getVolumeByPeriod(user.sub, query);
   }
+
+  @Get('muscles')
+  @ApiOperation({
+    summary:
+      'Get training volume ranked by primary muscle group for a given period',
+  })
+  @ApiQuery({ name: 'period', enum: ['week', 'month', 'year'] })
+  @ApiQuery({
+    name: 'date',
+    description:
+      'Reference date. Format: YYYY-Www (week), YYYY-MM (month), YYYY (year)',
+    example: '2026-03',
+  })
+  @ApiResponse({ status: 200, description: 'Muscle ranking returned' })
+  @ApiResponse({ status: 400, description: 'Invalid period or date format' })
+  getVolumeByMuscle(
+    @Query() query: StatsQueryDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.statsService.getVolumeByMuscle(user.sub, query);
+  }
 }
