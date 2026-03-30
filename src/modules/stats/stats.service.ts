@@ -225,11 +225,87 @@ export class StatsService {
   // ─── Volume by Muscle ─────────────────────────────────────────────────────────
 
   async getVolumeByMuscle(
-    _userId: string,
-    _query: StatsQueryDto,
-  ): Promise<unknown> {
-    // Implemented in Phase 4
-    throw new Error('Not implemented');
+    userId: string,
+    query: StatsQueryDto,
+  ): Promise<{
+    period: string;
+    date: string;
+    from: Date;
+    to: Date;
+    ranking: { rank: number; muscle: string; volume: number; sets: number }[];
+  }> {
+    const { from, to } = this.parseDateRange(query.period, query.date);
+
+    // Pipeline:
+    // 1. Match sessions in the period
+    // 2. Unwind exercises
+    // 3. $lookup to join Exercise catalog by exerciseId → get musclesPrimary
+    // 4. Unwind catalog result and musclesPrimary
+    // 5. Unwind sets, filter completed sets with weight
+    // 6. Group by primary muscle, summing volume and sets
+    // 7. Sort by volume descending
+    const pipeline = [
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          status: { $in: [SessionStatus.COMPLETED, SessionStatus.PARTIAL] },
+          startedAt: { $gte: from, $lte: to },
+        },
+      },
+      { $unwind: '$exercises' },
+      {
+        $lookup: {
+          from: 'exercises',
+          localField: 'exercises.exerciseId',
+          foreignField: '_id',
+          as: 'catalogExercise',
+        },
+      },
+      // Exercises not found in catalog (edge case) are silently dropped here
+      { $unwind: '$catalogExercise' },
+      { $unwind: '$catalogExercise.musclesPrimary' },
+      { $unwind: '$exercises.sets' },
+      {
+        $match: {
+          'exercises.sets.completed': true,
+          'exercises.sets.weight': { $ne: null },
+          'exercises.sets.reps': { $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: '$catalogExercise.musclesPrimary',
+          volume: {
+            $sum: {
+              $multiply: ['$exercises.sets.reps', '$exercises.sets.weight'],
+            },
+          },
+          sets: { $sum: 1 },
+        },
+      },
+      { $sort: { volume: -1 as const } },
+    ];
+
+    const raw = (await this.sessionModel.aggregate(pipeline).exec()) as {
+      _id: string;
+      volume: number;
+      sets: number;
+    }[];
+
+    const ranking = raw.map((item, index) => ({
+      rank: index + 1,
+      muscle: item._id,
+      volume: item.volume,
+      sets: item.sets,
+    }));
+
+    return {
+      period: query.period,
+      date: query.date,
+      from,
+      to,
+      ranking,
+    };
   }
 
   // ─── Date Range Helper ────────────────────────────────────────────────────────
