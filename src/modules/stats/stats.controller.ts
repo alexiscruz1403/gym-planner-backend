@@ -2,11 +2,13 @@ import { Controller, Get, Param, Query } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { StatsService } from './stats.service';
 import { ExerciseHistoryQueryDto } from './dto/exercise-history-query.dto';
+import { StatsQueryDto } from './dto/stats-query.dto';
 import { CurrentUser, type JwtPayload } from '../../common/decorators';
 
 @ApiTags('Stats')
@@ -28,5 +30,26 @@ export class StatsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.statsService.getExerciseHistory(user.sub, exerciseId, query);
+  }
+
+  @Get('volume')
+  @ApiOperation({
+    summary:
+      'Get total training volume and breakdown for a given period (week, month, year)',
+  })
+  @ApiQuery({ name: 'period', enum: ['week', 'month', 'year'] })
+  @ApiQuery({
+    name: 'date',
+    description:
+      'Reference date. Format: YYYY-Www (week), YYYY-MM (month), YYYY (year)',
+    example: '2026-03',
+  })
+  @ApiResponse({ status: 200, description: 'Volume stats returned' })
+  @ApiResponse({ status: 400, description: 'Invalid period or date format' })
+  getVolumeByPeriod(
+    @Query() query: StatsQueryDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.statsService.getVolumeByPeriod(user.sub, query);
   }
 }
