@@ -22,6 +22,7 @@ import { StartSessionDto } from './dto/start-session.dto';
 import { LogSetDto } from './dto/log-set.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 import { FinishSessionDto } from './dto/finish-session.dto';
+import { HistoryQueryDto } from './dto/history-query.dto';
 
 @Injectable()
 export class WorkoutSessionsService {
@@ -324,6 +325,82 @@ export class WorkoutSessionsService {
     userId: string,
   ): Promise<WorkoutSessionDocument> {
     return this.findSessionAndVerifyOwnership(sessionId, userId);
+  }
+
+  async getSessionHistory(
+    userId: string,
+    query: HistoryQueryDto,
+  ): Promise<{
+    data: {
+      _id: string;
+      planName: string;
+      dayOfWeek: string;
+      status: SessionStatus;
+      startedAt: Date;
+      finishedAt?: Date;
+      durationSeconds?: number;
+      totalSetsLogged: number;
+      exercises: {
+        exerciseName: string;
+        plannedSets: number;
+        completedSets: number;
+      }[];
+    }[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+  }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const filter = {
+      userId: new Types.ObjectId(userId),
+      status: { $in: [SessionStatus.COMPLETED, SessionStatus.PARTIAL] },
+    };
+
+    const [sessions, total] = await Promise.all([
+      this.sessionModel
+        .find(filter)
+        .sort({ startedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.sessionModel.countDocuments(filter).exec(),
+    ]);
+
+    const data = sessions.map((session) => {
+      const exercises = session.exercises.map((exercise) => ({
+        exerciseName: exercise.exerciseName,
+        plannedSets: exercise.plannedSets,
+        completedSets: exercise.sets.filter((s) => s.completed).length,
+      }));
+
+      const totalSetsLogged = session.exercises.reduce(
+        (acc, exercise) => acc + exercise.sets.length,
+        0,
+      );
+
+      return {
+        _id: session._id.toString(),
+        planName: session.planName,
+        dayOfWeek: session.dayOfWeek,
+        status: session.status,
+        startedAt: session.startedAt,
+        finishedAt: session.finishedAt,
+        durationSeconds: session.durationSeconds,
+        totalSetsLogged,
+        exercises,
+      };
+    });
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   // ─── Private helpers ──────────────────────────────────────────────────────────
