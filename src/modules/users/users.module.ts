@@ -28,6 +28,6 @@ import { ConfigService } from '@nestjs/config';
       useFactory: getCloudinaryConfig,
     },
   ],
-  exports: [UsersService],
+  exports: [UsersService, UploadService, CLOUDINARY],
 })
 export class UsersModule {}
