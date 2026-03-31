@@ -5,6 +5,7 @@ import { UsersService } from './users.service';
 import { UploadService } from './upload.service';
 import { User, UserSchema } from '../../schemas/user.schema';
 import { AuthModule } from '../auth/auth.module';
+import { SocialModule } from '../social/social.module';
 import {
   CLOUDINARY,
   getCloudinaryConfig,
@@ -13,10 +14,9 @@ import { ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
-    // Register User model so UsersService can inject it
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
-    // Import AuthModule to access AuthService.toResponseDto()
     AuthModule,
+    SocialModule,
   ],
   controllers: [UsersController],
   providers: [

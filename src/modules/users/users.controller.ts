@@ -3,6 +3,7 @@ import {
   Get,
   Patch,
   Post,
+  Param,
   Body,
   UploadedFile,
   UseInterceptors,
@@ -17,11 +18,13 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiBody,
+  ApiParam,
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserResponseDto } from './dto/user-response.dto';
+import { PublicUserResponseDto } from './dto/public-user-response.dto';
 import {
   CurrentUser,
   type JwtPayload,
@@ -32,6 +35,20 @@ import {
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get a public user profile' })
+  @ApiParam({ name: 'id', description: 'Target user MongoDB ObjectId' })
+  @ApiResponse({ status: 200, type: PublicUserResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid ObjectId format' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async getPublicProfile(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') targetId: string,
+  ): Promise<PublicUserResponseDto> {
+    return this.usersService.findPublicProfile(targetId, user.sub);
+  }
 
   @Get('me')
   @HttpCode(HttpStatus.OK)

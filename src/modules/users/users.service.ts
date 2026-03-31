@@ -8,8 +8,10 @@ import { Model } from 'mongoose';
 import { User, UserDocument } from '../../schemas/user.schema';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserResponseDto } from './dto/user-response.dto';
+import { PublicUserResponseDto } from './dto/public-user-response.dto';
 import { AuthService } from '../auth/auth.service';
 import { UploadService } from './upload.service';
+import { SocialService } from '../social/social.service';
 
 @Injectable()
 export class UsersService {
@@ -17,7 +19,30 @@ export class UsersService {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly authService: AuthService,
     private readonly uploadService: UploadService,
+    private readonly socialService: SocialService,
   ) {}
+
+  async findPublicProfile(
+    targetId: string,
+    requesterId: string,
+  ): Promise<PublicUserResponseDto> {
+    const user = await this.userModel.findById(targetId).exec();
+    if (!user) throw new NotFoundException('User not found.');
+
+    const isFollowing = await this.socialService.isFollowing(
+      requesterId,
+      targetId,
+    );
+
+    return {
+      _id: user._id.toString(),
+      username: user.username,
+      avatar: user.avatar,
+      followersCount: user.followersCount,
+      followingCount: user.followingCount,
+      isFollowing,
+    };
+  }
 
   async findById(id: string): Promise<UserResponseDto> {
     const user = await this.userModel.findById(id).exec();
