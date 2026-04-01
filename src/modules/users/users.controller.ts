@@ -68,6 +68,14 @@ export class UsersController {
     return this.usersService.searchUsers(query);
   }
 
+  @Get('me')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get the authenticated user profile' })
+  @ApiResponse({ status: 200, type: UserResponseDto })
+  async getProfile(@CurrentUser() user: JwtPayload): Promise<UserResponseDto> {
+    return this.usersService.findById(user.sub);
+  }
+
   @Get(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get a public user profile' })
@@ -80,14 +88,6 @@ export class UsersController {
     @Param('id') targetId: string,
   ): Promise<PublicUserResponseDto> {
     return this.usersService.findPublicProfile(targetId, user.sub);
-  }
-
-  @Get('me')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get the authenticated user profile' })
-  @ApiResponse({ status: 200, type: UserResponseDto })
-  async getProfile(@CurrentUser() user: JwtPayload): Promise<UserResponseDto> {
-    return this.usersService.findById(user.sub);
   }
 
   @Patch('me')
