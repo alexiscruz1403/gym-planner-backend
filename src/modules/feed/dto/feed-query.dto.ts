@@ -1,8 +1,23 @@
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
+export enum FeedFilter {
+  ALL = 'all',
+  MINE = 'mine',
+}
+
 export class FeedQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Filter posts: "all" returns own + followed users posts, "mine" returns only own posts',
+    enum: FeedFilter,
+    default: FeedFilter.ALL,
+  })
+  @IsOptional()
+  @IsEnum(FeedFilter)
+  filter?: FeedFilter = FeedFilter.ALL;
+
   @ApiPropertyOptional({
     description: 'Page number (1-based)',
     default: 1,

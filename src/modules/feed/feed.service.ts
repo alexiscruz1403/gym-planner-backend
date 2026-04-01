@@ -16,7 +16,7 @@ import {
 import { User, UserDocument } from '../../schemas/user.schema';
 import { UploadService } from '../users/upload.service';
 import { CreatePostDto } from './dto/create-post.dto';
-import { FeedQueryDto } from './dto/feed-query.dto';
+import { FeedFilter, FeedQueryDto } from './dto/feed-query.dto';
 import { AddCommentDto } from './dto/add-comment.dto';
 import {
   CommentListResponseDto,
@@ -89,18 +89,25 @@ export class FeedService {
     userId: string,
     query: FeedQueryDto,
   ): Promise<FeedListResponseDto> {
-    const { page = 1, limit = 20 } = query;
+    const { page = 1, limit = 20, filter: feedFilter = FeedFilter.ALL } = query;
     const skip = (page - 1) * limit;
 
-    const followDocs = await this.followModel
-      .find({ followerId: new Types.ObjectId(userId) })
-      .select('followingId')
-      .lean()
-      .exec();
+    let feedUserIds: Types.ObjectId[];
 
-    const followingIds = followDocs.map((f) => f.followingId);
+    if (feedFilter === FeedFilter.MINE) {
+      feedUserIds = [new Types.ObjectId(userId)];
+    } else {
+      const followDocs = await this.followModel
+        .find({ followerId: new Types.ObjectId(userId) })
+        .select('followingId')
+        .lean()
+        .exec();
 
-    const filter = { userId: { $in: followingIds } };
+      const followingIds = followDocs.map((f) => f.followingId);
+      feedUserIds = [new Types.ObjectId(userId), ...followingIds];
+    }
+
+    const filter = { userId: { $in: feedUserIds } };
 
     const [posts, total] = await Promise.all([
       this.feedPostModel
