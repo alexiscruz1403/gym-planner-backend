@@ -9,6 +9,7 @@ import { User, UserDocument } from '../../schemas/user.schema';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { PublicUserResponseDto } from './dto/public-user-response.dto';
+import { UserSearchQueryDto } from './dto/user-search-query.dto';
 import { AuthService } from '../auth/auth.service';
 import { UploadService } from './upload.service';
 import { SocialService } from '../social/social.service';
@@ -41,6 +42,43 @@ export class UsersService {
       followersCount: user.followersCount,
       followingCount: user.followingCount,
       isFollowing,
+    };
+  }
+
+  async searchUsers(query: UserSearchQueryDto): Promise<{
+    data: PublicUserResponseDto[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+  }> {
+    const { username, page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const filter: Record<string, unknown> = {};
+    if (username) {
+      filter.username = { $regex: username, $options: 'i' };
+    }
+
+    const [users, total] = await Promise.all([
+      this.userModel
+        .find(filter)
+        .sort({ username: 1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.userModel.countDocuments(filter).exec(),
+    ]);
+
+    const data: PublicUserResponseDto[] = users.map((u) => ({
+      _id: u._id.toString(),
+      username: u.username,
+      avatar: u.avatar,
+      followersCount: u.followersCount,
+      followingCount: u.followingCount,
+      isFollowing: false, // bulk search does not compute follow state per entry
+    }));
+
+    return {
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 
