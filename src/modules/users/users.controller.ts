@@ -4,6 +4,7 @@ import {
   Patch,
   Post,
   Param,
+  Query,
   Body,
   UploadedFile,
   UseInterceptors,
@@ -25,6 +26,7 @@ import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { PublicUserResponseDto } from './dto/public-user-response.dto';
+import { UserSearchQueryDto } from './dto/user-search-query.dto';
 import {
   CurrentUser,
   type JwtPayload,
@@ -35,6 +37,36 @@ import {
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Search users by username' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Paginated list of users. isFollowing is always false in search results.',
+    schema: {
+      example: {
+        data: [
+          {
+            _id: 'string',
+            username: 'string',
+            avatar: 'string | null',
+            followersCount: 0,
+            followingCount: 0,
+            isFollowing: false,
+          },
+        ],
+        meta: { total: 12, page: 1, limit: 20, totalPages: 1 },
+      },
+    },
+  })
+  async searchUsers(@Query() query: UserSearchQueryDto): Promise<{
+    data: PublicUserResponseDto[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+  }> {
+    return this.usersService.searchUsers(query);
+  }
 
   @Get(':id')
   @HttpCode(HttpStatus.OK)
