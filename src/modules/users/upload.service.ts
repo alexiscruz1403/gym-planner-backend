@@ -17,6 +17,13 @@ export class UploadService {
   ) {}
 
   async uploadAvatar(file: Express.Multer.File): Promise<string> {
+    return this.uploadImage(file, 'gym-planner/avatars');
+  }
+
+  async uploadImage(
+    file: Express.Multer.File,
+    folder: string,
+  ): Promise<string> {
     // Validate mime type — never trust the client's Content-Type
     if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
       throw new BadRequestException(
@@ -34,12 +41,7 @@ export class UploadService {
     // not on disk — we pipe the buffer directly to Cloudinary
     return new Promise<string>((resolve, reject) => {
       const stream = this.cloudinary.uploader.upload_stream(
-        {
-          folder: 'gym-planner/avatars',
-          // Cloudinary will use the userId as public_id so re-uploading
-          // an avatar overwrites the previous one instead of creating duplicates
-          resource_type: 'image',
-        },
+        { folder, resource_type: 'image' },
         (error, result: UploadApiResponse) => {
           if (error) {
             reject(new InternalServerErrorException('Failed to upload image.'));
