@@ -100,7 +100,10 @@ export class FeedService {
 
     const followingIds = followDocs.map((f) => f.followingId);
 
-    const filter = { userId: { $in: followingIds } };
+    // Include the requester's own posts alongside followed users' posts
+    const feedUserIds = [new Types.ObjectId(userId), ...followingIds];
+
+    const filter = { userId: { $in: feedUserIds } };
 
     const [posts, total] = await Promise.all([
       this.feedPostModel
