@@ -77,6 +77,7 @@ export class WorkoutSessionsService {
         exerciseName: config.exerciseName,
         orderIndex: index,
         supersetGroupId: config.supersetGroupId ?? undefined,
+        trackingType: 'reps' as const,
         plannedSets: config.sets,
         plannedReps: config.reps ?? undefined,
         plannedDuration: config.duration ?? undefined,
@@ -87,14 +88,32 @@ export class WorkoutSessionsService {
       }),
     );
 
-    // 5. Resolve lastPerformance per exercise
+    // 5. Resolve trackingType from Exercise catalog and snapshot it
     const exerciseIds = exercises.map((e) => e.exerciseId);
+
+    const exerciseDocs = await this.exerciseModel
+      .find({ _id: { $in: exerciseIds } })
+      .select('_id trackingType')
+      .exec();
+
+    const trackingTypeMap = new Map(
+      exerciseDocs.map((e) => [
+        e._id.toString(),
+        e.trackingType as 'reps' | 'duration',
+      ]),
+    );
+
+    exercises.forEach((ex) => {
+      ex.trackingType = trackingTypeMap.get(ex.exerciseId.toString()) ?? 'reps';
+    });
+
+    // 7. Resolve lastPerformance per exercise
     const lastPerformanceMap = await this.resolveLastPerformance(
       userId,
       exerciseIds,
     );
 
-    // 6. Persist the new session
+    // 8. Persist the new session
     const session = await this.sessionModel.create({
       userId: new Types.ObjectId(userId),
       planId: activePlan._id,
@@ -186,7 +205,7 @@ export class WorkoutSessionsService {
     // Resolve new exercise from the catalog
     const newExercise = await this.exerciseModel
       .findOne({ _id: new Types.ObjectId(dto.newExerciseId), isActive: true })
-      .select('_id name')
+      .select('_id name trackingType')
       .exec();
 
     if (!newExercise) {
@@ -205,6 +224,7 @@ export class WorkoutSessionsService {
       exerciseName: newExercise.name,
       orderIndex: original.orderIndex,
       supersetGroupId: original.supersetGroupId,
+      trackingType: (newExercise.trackingType as 'reps' | 'duration') ?? 'reps',
       plannedSets: dto.plannedSets ?? original.plannedSets,
       plannedReps: dto.plannedReps ?? original.plannedReps,
       plannedDuration: dto.plannedDuration ?? original.plannedDuration,

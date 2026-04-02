@@ -53,6 +53,14 @@ export class SessionExercise {
   @Prop({ required: false })
   supersetGroupId?: string;
 
+  @Prop({
+    type: String,
+    enum: ['reps', 'duration'],
+    required: true,
+    default: 'reps',
+  })
+  trackingType: 'reps' | 'duration';
+
   // Planned config — snapshotted from WorkoutPlan at session start.
   // Can be mutated via PATCH /sessions/:id/exercises/:exerciseId within the session.
   @Prop({ required: true, min: 1 })

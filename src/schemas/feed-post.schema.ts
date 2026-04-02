@@ -18,6 +18,61 @@ export class Reaction {
 
 export const ReactionSchema = SchemaFactory.createForClass(Reaction);
 
+// ─── SessionSummarySet ────────────────────────────────────────────────────────
+
+@Schema({ _id: false })
+export class SessionSummarySet {
+  @Prop({ required: false })
+  reps?: number;
+
+  @Prop({ required: false })
+  durationSeconds?: number;
+
+  @Prop({ required: false })
+  weightKg?: number;
+
+  @Prop({ required: true, default: false })
+  completed: boolean;
+}
+
+export const SessionSummarySetSchema =
+  SchemaFactory.createForClass(SessionSummarySet);
+
+// ─── SessionSummaryExercise ───────────────────────────────────────────────────
+
+@Schema({ _id: false })
+export class SessionSummaryExercise {
+  @Prop({ required: true })
+  name: string;
+
+  @Prop({ type: [SessionSummarySetSchema], default: [] })
+  sets: SessionSummarySet[];
+}
+
+export const SessionSummaryExerciseSchema = SchemaFactory.createForClass(
+  SessionSummaryExercise,
+);
+
+// ─── SessionSummary ───────────────────────────────────────────────────────────
+
+@Schema({ _id: false })
+export class SessionSummary {
+  @Prop({ required: true, default: 0 })
+  durationSeconds: number;
+
+  @Prop({ required: true, default: 0 })
+  totalSets: number;
+
+  @Prop({ required: true, default: 0 })
+  volumeKg: number;
+
+  @Prop({ type: [SessionSummaryExerciseSchema], default: [] })
+  exercises: SessionSummaryExercise[];
+}
+
+export const SessionSummarySchema =
+  SchemaFactory.createForClass(SessionSummary);
+
 // ─── Reply ────────────────────────────────────────────────────────────────────
 // Level-2 nested comment. _id is enabled so replies can be addressed by ID.
 // Replies cannot have their own replies (2-level cap enforced structurally).
