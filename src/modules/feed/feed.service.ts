@@ -23,7 +23,9 @@ import {
   CommentResponseDto,
   FeedListResponseDto,
   FeedPostResponseDto,
+  ReplyResponseDto,
 } from './dto/feed-post-response.dto';
+import { AddReplyDto } from './dto/add-reply.dto';
 import { SessionStatus } from '../../common/enums/session-status.enum';
 
 @Injectable()
@@ -215,17 +217,64 @@ export class FeedService {
     const comment = {
       userId: new Types.ObjectId(userId),
       text: dto.text,
+      replies: [],
       createdAt: new Date(),
     };
 
     post.comments.push(comment);
     await post.save();
 
+    // The pushed comment is the last one — retrieve its generated _id
+    const saved = post.comments[post.comments.length - 1];
+
     return {
+      _id: saved._id?.toString() ?? '',
       userId,
       username: author.username,
       text: dto.text,
+      replies: [],
       createdAt: comment.createdAt,
+    };
+  }
+
+  async addReply(
+    userId: string,
+    postId: string,
+    commentId: string,
+    dto: AddReplyDto,
+  ): Promise<ReplyResponseDto> {
+    const post = await this.feedPostModel.findById(postId).exec();
+    if (!post) throw new NotFoundException('Post not found.');
+
+    const comment = post.comments.find((c) => c._id?.toString() === commentId);
+    if (!comment) throw new NotFoundException('Comment not found.');
+
+    const author = await this.userModel
+      .findById(userId)
+      .select('username')
+      .lean()
+      .exec();
+
+    if (!author) throw new NotFoundException('User not found.');
+
+    const reply = {
+      userId: new Types.ObjectId(userId),
+      text: dto.text,
+      createdAt: new Date(),
+    };
+
+    comment.replies.push(reply);
+    post.markModified('comments');
+    await post.save();
+
+    const saved = comment.replies[comment.replies.length - 1];
+
+    return {
+      _id: saved._id?.toString() ?? '',
+      userId,
+      username: author.username,
+      text: dto.text,
+      createdAt: reply.createdAt,
     };
   }
 
@@ -245,7 +294,14 @@ export class FeedService {
     const skip = (page - 1) * limit;
     const slice = post.comments.slice(skip, skip + limit);
 
-    const userIds = [...new Set(slice.map((c) => c.userId.toString()))];
+    // Collect all userIds from comments and their replies for username resolution
+    const userIds = [
+      ...new Set([
+        ...slice.map((c) => c.userId.toString()),
+        ...slice.flatMap((c) => c.replies.map((r) => r.userId.toString())),
+      ]),
+    ];
+
     const users = await this.userModel
       .find({ _id: { $in: userIds } })
       .select('_id username')
@@ -257,9 +313,17 @@ export class FeedService {
     );
 
     const data: CommentResponseDto[] = slice.map((c) => ({
+      _id: c._id?.toString() ?? '',
       userId: c.userId.toString(),
       username: usernameMap.get(c.userId.toString()) ?? 'unknown',
       text: c.text,
+      replies: c.replies.map((r) => ({
+        _id: r._id?.toString() ?? '',
+        userId: r.userId.toString(),
+        username: usernameMap.get(r.userId.toString()) ?? 'unknown',
+        text: r.text,
+        createdAt: r.createdAt,
+      })),
       createdAt: c.createdAt,
     }));
 

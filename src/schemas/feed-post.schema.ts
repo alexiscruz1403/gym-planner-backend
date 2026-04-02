@@ -18,15 +18,41 @@ export class Reaction {
 
 export const ReactionSchema = SchemaFactory.createForClass(Reaction);
 
-// ─── Comment ──────────────────────────────────────────────────────────────────
+// ─── Reply ────────────────────────────────────────────────────────────────────
+// Level-2 nested comment. _id is enabled so replies can be addressed by ID.
+// Replies cannot have their own replies (2-level cap enforced structurally).
 
-@Schema({ _id: false, timestamps: { createdAt: true, updatedAt: false } })
-export class Comment {
+@Schema({ timestamps: { createdAt: true, updatedAt: false } })
+export class Reply {
+  _id?: Types.ObjectId;
+
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
   @Prop({ required: true, maxlength: 300, trim: true })
   text: string;
+
+  @Prop({ type: Date })
+  createdAt: Date;
+}
+
+export const ReplySchema = SchemaFactory.createForClass(Reply);
+
+// ─── Comment ──────────────────────────────────────────────────────────────────
+// _id enabled so comments can be targeted for replies.
+
+@Schema({ timestamps: { createdAt: true, updatedAt: false } })
+export class Comment {
+  _id?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  userId: Types.ObjectId;
+
+  @Prop({ required: true, maxlength: 300, trim: true })
+  text: string;
+
+  @Prop({ type: [ReplySchema], default: [] })
+  replies: Reply[];
 
   @Prop({ type: Date })
   createdAt: Date;
