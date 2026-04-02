@@ -18,6 +18,9 @@ export class ExerciseResponseDto {
   @ApiProperty({ enum: LoadType })
   loadType: LoadType;
 
+  @ApiProperty({ enum: ['reps', 'duration'] })
+  trackingType: 'reps' | 'duration';
+
   @ApiProperty()
   bilateral: boolean;
 

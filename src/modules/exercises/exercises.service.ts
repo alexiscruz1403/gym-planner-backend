@@ -30,6 +30,7 @@ export class ExercisesService {
       musclesPrimary: exercise.musclesPrimary,
       musclesSecondary: exercise.musclesSecondary,
       loadType: exercise.loadType,
+      trackingType: exercise.trackingType,
       bilateral: exercise.bilateral,
       gifUrl: exercise.gifUrl ?? null,
       videoUrl: exercise.videoUrl ?? null,

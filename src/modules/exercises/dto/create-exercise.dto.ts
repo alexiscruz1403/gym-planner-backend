@@ -44,6 +44,10 @@ export class CreateExerciseDto {
   @IsEnum(LoadType)
   loadType: LoadType;
 
+  @ApiProperty({ enum: ['reps', 'duration'], example: 'reps' })
+  @IsEnum(['reps', 'duration'])
+  trackingType: 'reps' | 'duration';
+
   @ApiProperty({ example: true })
   @IsBoolean()
   bilateral: boolean;
