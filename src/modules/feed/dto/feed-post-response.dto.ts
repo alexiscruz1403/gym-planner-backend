@@ -95,7 +95,10 @@ export class FeedListResponseDto {
   };
 }
 
-export class CommentResponseDto {
+export class ReplyResponseDto {
+  @ApiProperty()
+  _id: string;
+
   @ApiProperty()
   userId: string;
 
@@ -104,6 +107,26 @@ export class CommentResponseDto {
 
   @ApiProperty()
   text: string;
+
+  @ApiProperty()
+  createdAt: Date;
+}
+
+export class CommentResponseDto {
+  @ApiProperty()
+  _id: string;
+
+  @ApiProperty()
+  userId: string;
+
+  @ApiProperty()
+  username: string;
+
+  @ApiProperty()
+  text: string;
+
+  @ApiProperty({ type: [ReplyResponseDto] })
+  replies: ReplyResponseDto[];
 
   @ApiProperty()
   createdAt: Date;

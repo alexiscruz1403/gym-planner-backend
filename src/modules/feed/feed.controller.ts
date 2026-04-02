@@ -30,7 +30,9 @@ import {
   CommentResponseDto,
   FeedListResponseDto,
   FeedPostResponseDto,
+  ReplyResponseDto,
 } from './dto/feed-post-response.dto';
+import { AddReplyDto } from './dto/add-reply.dto';
 import {
   CurrentUser,
   type JwtPayload,
@@ -154,5 +156,21 @@ export class FeedController {
     @Query() query: FeedQueryDto,
   ): Promise<CommentListResponseDto> {
     return this.feedService.getComments(postId, query);
+  }
+
+  @Post('posts/:postId/comments/:commentId/replies')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Add a reply to a comment (max 2-level nesting)' })
+  @ApiParam({ name: 'postId', description: 'FeedPost MongoDB ObjectId' })
+  @ApiParam({ name: 'commentId', description: 'Comment MongoDB ObjectId' })
+  @ApiResponse({ status: 201, type: ReplyResponseDto })
+  @ApiResponse({ status: 404, description: 'Post or comment not found' })
+  async addReply(
+    @CurrentUser() user: JwtPayload,
+    @Param('postId') postId: string,
+    @Param('commentId') commentId: string,
+    @Body() dto: AddReplyDto,
+  ): Promise<ReplyResponseDto> {
+    return this.feedService.addReply(user.sub, postId, commentId, dto);
   }
 }
