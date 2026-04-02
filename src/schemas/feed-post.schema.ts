@@ -18,6 +18,61 @@ export class Reaction {
 
 export const ReactionSchema = SchemaFactory.createForClass(Reaction);
 
+// ─── SessionSummarySet ────────────────────────────────────────────────────────
+
+@Schema({ _id: false })
+export class SessionSummarySet {
+  @Prop({ required: false })
+  reps?: number;
+
+  @Prop({ required: false })
+  durationSeconds?: number;
+
+  @Prop({ required: false })
+  weightKg?: number;
+
+  @Prop({ required: true, default: false })
+  completed: boolean;
+}
+
+export const SessionSummarySetSchema =
+  SchemaFactory.createForClass(SessionSummarySet);
+
+// ─── SessionSummaryExercise ───────────────────────────────────────────────────
+
+@Schema({ _id: false })
+export class SessionSummaryExercise {
+  @Prop({ required: true })
+  name: string;
+
+  @Prop({ type: [SessionSummarySetSchema], default: [] })
+  sets: SessionSummarySet[];
+}
+
+export const SessionSummaryExerciseSchema = SchemaFactory.createForClass(
+  SessionSummaryExercise,
+);
+
+// ─── SessionSummary ───────────────────────────────────────────────────────────
+
+@Schema({ _id: false })
+export class SessionSummary {
+  @Prop({ required: true, default: 0 })
+  durationSeconds: number;
+
+  @Prop({ required: true, default: 0 })
+  totalSets: number;
+
+  @Prop({ required: true, default: 0 })
+  volumeKg: number;
+
+  @Prop({ type: [SessionSummaryExerciseSchema], default: [] })
+  exercises: SessionSummaryExercise[];
+}
+
+export const SessionSummarySchema =
+  SchemaFactory.createForClass(SessionSummary);
+
 // ─── Comment ──────────────────────────────────────────────────────────────────
 
 @Schema({ _id: false, timestamps: { createdAt: true, updatedAt: false } })
@@ -49,6 +104,11 @@ export class FeedPost {
 
   @Prop({ required: false, maxlength: 500, trim: true })
   caption?: string;
+
+  // Snapshotted from WorkoutSession at post creation time.
+  // null on posts created before this field was introduced (pre-Sprint 7).
+  @Prop({ type: SessionSummarySchema, required: false, default: null })
+  sessionSummary: SessionSummary | null;
 
   @Prop({ type: [ReactionSchema], default: [] })
   reactions: Reaction[];
