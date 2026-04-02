@@ -23,6 +23,7 @@ import { LogSetDto } from './dto/log-set.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 import { FinishSessionDto } from './dto/finish-session.dto';
 import { HistoryQueryDto } from './dto/history-query.dto';
+import { PublicSessionHistoryQueryDto } from './dto/public-session-history-query.dto';
 
 @Injectable()
 export class WorkoutSessionsService {
@@ -400,6 +401,95 @@ export class WorkoutSessionsService {
         limit,
         totalPages: Math.ceil(total / limit),
       },
+    };
+  }
+
+  async getPublicSessionHistory(
+    targetUserId: string,
+    query: PublicSessionHistoryQueryDto,
+  ): Promise<{
+    data: {
+      _id: string;
+      planName: string;
+      dayOfWeek: string;
+      status: SessionStatus;
+      startedAt: Date;
+      finishedAt?: Date;
+      durationSeconds?: number;
+      totalSets: number;
+      volumeKg: number;
+      exercises: {
+        exerciseName: string;
+        sets: {
+          setIndex: number;
+          reps?: number;
+          durationSeconds?: number;
+          weightKg?: number;
+          completed: boolean;
+        }[];
+      }[];
+    }[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+  }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const filter = {
+      userId: new Types.ObjectId(targetUserId),
+      status: { $in: [SessionStatus.COMPLETED, SessionStatus.PARTIAL] },
+    };
+
+    const [sessions, total] = await Promise.all([
+      this.sessionModel
+        .find(filter)
+        .sort({ startedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.sessionModel.countDocuments(filter).exec(),
+    ]);
+
+    const data = sessions.map((session) => {
+      let totalSets = 0;
+      let volumeKg = 0;
+
+      const exercises = session.exercises.map((ex) => {
+        const sets = ex.sets.map((s) => {
+          if (s.completed) {
+            totalSets++;
+            if (s.weight != null && s.reps != null) {
+              volumeKg += s.reps * s.weight;
+            }
+          }
+          return {
+            setIndex: s.setIndex,
+            reps: s.reps,
+            durationSeconds: s.duration,
+            weightKg: s.weight,
+            completed: s.completed,
+          };
+        });
+        return { exerciseName: ex.exerciseName, sets };
+      });
+
+      return {
+        _id: session._id.toString(),
+        planName: session.planName,
+        dayOfWeek: session.dayOfWeek,
+        status: session.status,
+        startedAt: session.startedAt,
+        finishedAt: session.finishedAt,
+        durationSeconds: session.durationSeconds,
+        totalSets,
+        volumeKg,
+        exercises,
+      };
+    });
+
+    return {
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 
