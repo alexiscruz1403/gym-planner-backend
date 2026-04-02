@@ -25,6 +25,7 @@ const EXERCISES = [
     musclesPrimary: ['chest'],
     musclesSecondary: ['front_delts', 'triceps'],
     loadType: 'barbell',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -32,6 +33,7 @@ const EXERCISES = [
     musclesPrimary: ['chest', 'front_delts'],
     musclesSecondary: ['triceps'],
     loadType: 'dumbbell',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -39,6 +41,7 @@ const EXERCISES = [
     musclesPrimary: ['chest'],
     musclesSecondary: [],
     loadType: 'dumbbell',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -46,6 +49,7 @@ const EXERCISES = [
     musclesPrimary: ['chest'],
     musclesSecondary: [],
     loadType: 'cable',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -53,6 +57,7 @@ const EXERCISES = [
     musclesPrimary: ['chest', 'triceps'],
     musclesSecondary: ['front_delts'],
     loadType: 'bodyweight',
+    trackingType: 'reps',
     bilateral: true,
   },
 
@@ -62,6 +67,7 @@ const EXERCISES = [
     musclesPrimary: ['lats', 'upper_back'],
     musclesSecondary: ['biceps'],
     loadType: 'bodyweight',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -69,6 +75,7 @@ const EXERCISES = [
     musclesPrimary: ['upper_back', 'lats'],
     musclesSecondary: ['biceps', 'rear_delts'],
     loadType: 'barbell',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -76,6 +83,7 @@ const EXERCISES = [
     musclesPrimary: ['upper_back', 'lats'],
     musclesSecondary: ['biceps'],
     loadType: 'dumbbell',
+    trackingType: 'reps',
     bilateral: false,
   },
   {
@@ -83,6 +91,7 @@ const EXERCISES = [
     musclesPrimary: ['lats'],
     musclesSecondary: ['biceps', 'upper_back'],
     loadType: 'cable',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -90,6 +99,7 @@ const EXERCISES = [
     musclesPrimary: ['upper_back'],
     musclesSecondary: ['lats', 'biceps'],
     loadType: 'cable',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -97,6 +107,7 @@ const EXERCISES = [
     musclesPrimary: ['rear_delts', 'upper_back'],
     musclesSecondary: ['traps'],
     loadType: 'cable',
+    trackingType: 'reps',
     bilateral: true,
   },
 
@@ -106,6 +117,7 @@ const EXERCISES = [
     musclesPrimary: ['front_delts', 'side_delts'],
     musclesSecondary: ['triceps', 'traps'],
     loadType: 'barbell',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -113,6 +125,7 @@ const EXERCISES = [
     musclesPrimary: ['side_delts'],
     musclesSecondary: [],
     loadType: 'dumbbell',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -120,6 +133,7 @@ const EXERCISES = [
     musclesPrimary: ['front_delts', 'side_delts'],
     musclesSecondary: ['triceps'],
     loadType: 'dumbbell',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -127,6 +141,7 @@ const EXERCISES = [
     musclesPrimary: ['rear_delts'],
     musclesSecondary: ['upper_back'],
     loadType: 'machine',
+    trackingType: 'reps',
     bilateral: true,
   },
 
@@ -136,6 +151,7 @@ const EXERCISES = [
     musclesPrimary: ['biceps'],
     musclesSecondary: ['forearms'],
     loadType: 'barbell',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -143,6 +159,7 @@ const EXERCISES = [
     musclesPrimary: ['biceps', 'forearms'],
     musclesSecondary: [],
     loadType: 'dumbbell',
+    trackingType: 'reps',
     bilateral: false,
   },
   {
@@ -150,6 +167,7 @@ const EXERCISES = [
     musclesPrimary: ['biceps'],
     musclesSecondary: [],
     loadType: 'machine',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -157,6 +175,7 @@ const EXERCISES = [
     musclesPrimary: ['triceps'],
     musclesSecondary: [],
     loadType: 'cable',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -164,6 +183,7 @@ const EXERCISES = [
     musclesPrimary: ['triceps'],
     musclesSecondary: [],
     loadType: 'barbell',
+    trackingType: 'reps',
     bilateral: true,
   },
 
@@ -173,6 +193,7 @@ const EXERCISES = [
     musclesPrimary: ['quads', 'glutes'],
     musclesSecondary: ['hamstrings', 'lower_back'],
     loadType: 'barbell',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -180,6 +201,7 @@ const EXERCISES = [
     musclesPrimary: ['quads', 'glutes'],
     musclesSecondary: ['hamstrings'],
     loadType: 'machine',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -187,6 +209,7 @@ const EXERCISES = [
     musclesPrimary: ['quads'],
     musclesSecondary: [],
     loadType: 'machine',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -194,6 +217,7 @@ const EXERCISES = [
     musclesPrimary: ['quads', 'glutes'],
     musclesSecondary: ['hamstrings'],
     loadType: 'dumbbell',
+    trackingType: 'reps',
     bilateral: false,
   },
 
@@ -203,6 +227,7 @@ const EXERCISES = [
     musclesPrimary: ['hamstrings', 'glutes'],
     musclesSecondary: ['lower_back'],
     loadType: 'barbell',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -210,6 +235,7 @@ const EXERCISES = [
     musclesPrimary: ['hamstrings'],
     musclesSecondary: [],
     loadType: 'machine',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -217,6 +243,7 @@ const EXERCISES = [
     musclesPrimary: ['glutes', 'hamstrings'],
     musclesSecondary: [],
     loadType: 'barbell',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -224,6 +251,7 @@ const EXERCISES = [
     musclesPrimary: ['glutes', 'quads'],
     musclesSecondary: ['hamstrings'],
     loadType: 'dumbbell',
+    trackingType: 'reps',
     bilateral: false,
   },
 
@@ -233,6 +261,7 @@ const EXERCISES = [
     musclesPrimary: ['calves'],
     musclesSecondary: [],
     loadType: 'machine',
+    trackingType: 'reps',
     bilateral: true,
   },
 
@@ -242,6 +271,7 @@ const EXERCISES = [
     musclesPrimary: ['abs', 'lower_back'],
     musclesSecondary: [],
     loadType: 'bodyweight',
+    trackingType: 'duration', // timed hold — no reps
     bilateral: true,
   },
   {
@@ -249,6 +279,7 @@ const EXERCISES = [
     musclesPrimary: ['abs'],
     musclesSecondary: ['obliques'],
     loadType: 'bodyweight',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -256,6 +287,7 @@ const EXERCISES = [
     musclesPrimary: ['abs'],
     musclesSecondary: [],
     loadType: 'cable',
+    trackingType: 'reps',
     bilateral: true,
   },
   {
@@ -263,6 +295,7 @@ const EXERCISES = [
     musclesPrimary: ['abs', 'lower_back'],
     musclesSecondary: [],
     loadType: 'bodyweight',
+    trackingType: 'reps',
     bilateral: true,
   },
 ];

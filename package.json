@@ -20,7 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prepare": "husky",
     "seed:admin": "ts-node -r tsconfig-paths/register src/database/seeds/admin.seed.ts",
-    "seed:exercises": "ts-node -r tsconfig-paths/register src/database/seeds/exercises.seed.ts"
+    "seed:exercises": "ts-node -r tsconfig-paths/register src/database/seeds/exercises.seed.ts",
+    "migrate:tracking-type": "ts-node -r tsconfig-paths/register src/database/seeds/migrate-tracking-type.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
