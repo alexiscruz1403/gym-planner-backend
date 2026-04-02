@@ -31,6 +31,11 @@ export class User {
   })
   role: 'user' | 'admin';
 
+  // Soft disable — deactivated users cannot log in.
+  // Never hard-deleted to preserve referential integrity with sessions and posts.
+  @Prop({ default: true })
+  isActive: boolean;
+
   @Prop({ default: 0 })
   followersCount: number;
 
