@@ -1,4 +1,40 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class SessionSummarySetDto {
+  @ApiPropertyOptional({ nullable: true })
+  reps?: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  durationSeconds?: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  weightKg?: number;
+
+  @ApiProperty()
+  completed: boolean;
+}
+
+export class SessionSummaryExerciseDto {
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty({ type: [SessionSummarySetDto] })
+  sets: SessionSummarySetDto[];
+}
+
+export class SessionSummaryDto {
+  @ApiProperty()
+  durationSeconds: number;
+
+  @ApiProperty()
+  totalSets: number;
+
+  @ApiProperty()
+  volumeKg: number;
+
+  @ApiProperty({ type: [SessionSummaryExerciseDto] })
+  exercises: SessionSummaryExerciseDto[];
+}
 
 export class FeedAuthorDto {
   @ApiProperty({ example: '661f1b2c3d4e5f6a7b8c9d0e' })
@@ -26,6 +62,9 @@ export class FeedPostResponseDto {
 
   @ApiProperty({ required: false, nullable: true })
   caption?: string;
+
+  @ApiPropertyOptional({ type: SessionSummaryDto, nullable: true })
+  sessionSummary: SessionSummaryDto | null;
 
   @ApiProperty({ example: 3 })
   reactionsCount: number;

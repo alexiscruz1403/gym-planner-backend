@@ -10,6 +10,7 @@ import {
 } from '../../schemas/workout-plan.schema';
 import { Exercise, ExerciseSchema } from '../../schemas/exercise.schema';
 import { WorkoutSessionsController } from './workout-sessions.controller';
+import { PublicSessionHistoryController } from './public-session-history.controller';
 import { WorkoutSessionsService } from './workout-sessions.service';
 
 @Module({
@@ -23,7 +24,7 @@ import { WorkoutSessionsService } from './workout-sessions.service';
       { name: Exercise.name, schema: ExerciseSchema },
     ]),
   ],
-  controllers: [WorkoutSessionsController],
+  controllers: [WorkoutSessionsController, PublicSessionHistoryController],
   providers: [WorkoutSessionsService],
 })
 export class WorkoutSessionsModule {}

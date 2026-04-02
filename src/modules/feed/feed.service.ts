@@ -49,10 +49,8 @@ export class FeedService {
     dto: CreatePostDto,
     file?: Express.Multer.File,
   ): Promise<FeedPostResponseDto> {
-    const session = await this.sessionModel
-      .findById(dto.sessionId)
-      .select('userId status')
-      .exec();
+    // Load full session — needed for both validation and summary computation
+    const session = await this.sessionModel.findById(dto.sessionId).exec();
 
     if (!session) throw new NotFoundException('Session not found.');
     if (session.userId.toString() !== userId) {
@@ -64,6 +62,8 @@ export class FeedService {
       );
     }
 
+    const sessionSummary = this.computeSessionSummary(session);
+
     let photoUrl: string | undefined;
     if (file) {
       photoUrl = await this.uploadService.uploadImage(file, 'gym-planner/feed');
@@ -74,6 +74,7 @@ export class FeedService {
       sessionId: new Types.ObjectId(dto.sessionId),
       photoUrl,
       caption: dto.caption,
+      sessionSummary,
     });
 
     const author = await this.userModel
@@ -342,6 +343,7 @@ export class FeedService {
       | 'sessionId'
       | 'photoUrl'
       | 'caption'
+      | 'sessionSummary'
       | 'reactions'
       | 'comments'
       | 'createdAt'
@@ -363,10 +365,43 @@ export class FeedService {
       sessionId: post.sessionId.toString(),
       photoUrl: post.photoUrl,
       caption: post.caption,
+      sessionSummary: post.sessionSummary ?? null,
       reactionsCount: post.reactions.length,
       commentsCount: post.comments.length,
       userReacted,
       createdAt: post.createdAt,
+    };
+  }
+
+  private computeSessionSummary(
+    session: Pick<WorkoutSessionDocument, 'durationSeconds' | 'exercises'>,
+  ): SessionSummaryDto {
+    let totalSets = 0;
+    let volumeKg = 0;
+
+    const exercises = session.exercises.map((ex) => {
+      const sets = ex.sets.map((s) => {
+        if (s.completed) {
+          totalSets++;
+          if (s.weight != null && s.reps != null) {
+            volumeKg += s.reps * s.weight;
+          }
+        }
+        return {
+          reps: s.reps,
+          durationSeconds: s.duration,
+          weightKg: s.weight,
+          completed: s.completed,
+        };
+      });
+      return { name: ex.exerciseName, sets };
+    });
+
+    return {
+      durationSeconds: session.durationSeconds ?? 0,
+      totalSets,
+      volumeKg,
+      exercises,
     };
   }
 }

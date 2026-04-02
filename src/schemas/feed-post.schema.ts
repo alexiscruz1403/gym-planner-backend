@@ -76,6 +76,11 @@ export class FeedPost {
   @Prop({ required: false, maxlength: 500, trim: true })
   caption?: string;
 
+  // Snapshotted from WorkoutSession at post creation time.
+  // null on posts created before this field was introduced (pre-Sprint 7).
+  @Prop({ type: SessionSummarySchema, required: false, default: null })
+  sessionSummary: SessionSummary | null;
+
   @Prop({ type: [ReactionSchema], default: [] })
   reactions: Reaction[];
 

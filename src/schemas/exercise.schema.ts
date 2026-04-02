@@ -28,6 +28,16 @@ export class Exercise {
   @Prop({ required: false })
   videoUrl?: string;
 
+  // Determines whether sets track repetitions or time duration.
+  // 'reps' exercises log reps + weight; 'duration' exercises log durationSeconds only.
+  @Prop({
+    type: String,
+    enum: ['reps', 'duration'],
+    required: true,
+    default: 'reps',
+  })
+  trackingType: 'reps' | 'duration';
+
   // Soft delete: admin deactivates, never hard-deletes
   // Preserves referential integrity with historical WorkoutSessions
   @Prop({ default: true })
