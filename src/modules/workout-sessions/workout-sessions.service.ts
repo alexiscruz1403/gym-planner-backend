@@ -251,15 +251,7 @@ export class WorkoutSessionsService {
     sessionId: string,
     userId: string,
     dto: FinishSessionDto,
-  ): Promise<{
-    _id: string;
-    status: SessionStatus;
-    startedAt: Date;
-    finishedAt: Date;
-    durationSeconds: number;
-    exercisesCompleted: number;
-    totalSetsLogged: number;
-  }> {
+  ): Promise<WorkoutSessionDocument> {
     const session = await this.findSessionAndVerifyOwnership(sessionId, userId);
     this.assertInProgress(session);
 
@@ -274,15 +266,6 @@ export class WorkoutSessionsService {
       (e) => e.sets.length > 0,
     ) as typeof session.exercises;
 
-    const exercisesCompleted = session.exercises.filter((e) =>
-      e.sets.some((s) => s.completed),
-    ).length;
-
-    const totalSetsLogged = session.exercises.reduce(
-      (acc, e) => acc + e.sets.length,
-      0,
-    );
-
     session.status = dto.status as SessionStatus;
     session.finishedAt = finishedAt;
     session.durationSeconds = durationSeconds;
@@ -290,15 +273,7 @@ export class WorkoutSessionsService {
 
     await session.save();
 
-    return {
-      _id: session._id.toString(),
-      status: session.status,
-      startedAt: session.startedAt,
-      finishedAt,
-      durationSeconds,
-      exercisesCompleted,
-      totalSetsLogged,
-    };
+    return session;
   }
 
   // ─── Cancel Session ───────────────────────────────────────────────────────────
