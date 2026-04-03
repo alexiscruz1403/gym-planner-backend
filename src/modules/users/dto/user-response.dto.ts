@@ -24,6 +24,12 @@ export class UserResponseDto {
   @ApiProperty({ example: 0 })
   followingCount: number;
 
+  @ApiProperty({ enum: ['user', 'admin'], example: 'user' })
+  role: 'user' | 'admin';
+
+  @ApiProperty({ example: true })
+  isActive: boolean;
+
   @ApiProperty({ example: '2024-01-01T00:00:00.000Z' })
   createdAt: Date;
 }

@@ -24,6 +24,7 @@ import {
   FeedListResponseDto,
   FeedPostResponseDto,
   ReplyResponseDto,
+  SessionSummaryDto,
 } from './dto/feed-post-response.dto';
 import { AddReplyDto } from './dto/add-reply.dto';
 import { SessionStatus } from '../../common/enums/session-status.enum';
