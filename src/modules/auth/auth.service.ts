@@ -43,6 +43,8 @@ export class AuthService {
       avatar: user.avatar,
       followersCount: user.followersCount,
       followingCount: user.followingCount,
+      role: user.role,
+      isActive: user.isActive,
       createdAt: user.createdAt,
     };
   }
