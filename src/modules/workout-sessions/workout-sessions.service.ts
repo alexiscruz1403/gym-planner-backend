@@ -436,7 +436,7 @@ export class WorkoutSessionsService {
       startedAt: Date;
       finishedAt?: Date;
       durationSeconds?: number;
-      totalSets: number;
+      totalSetsLogged: number;
       volumeKg: number;
       exercises: {
         exerciseName: string;
@@ -471,13 +471,13 @@ export class WorkoutSessionsService {
     ]);
 
     const data = sessions.map((session) => {
-      let totalSets = 0;
+      let totalSetsLogged = 0;
       let volumeKg = 0;
 
       const exercises = session.exercises.map((ex) => {
         const sets = ex.sets.map((s) => {
           if (s.completed) {
-            totalSets++;
+            totalSetsLogged++;
             if (s.weight != null && s.reps != null) {
               volumeKg += s.reps * s.weight;
             }
@@ -501,7 +501,7 @@ export class WorkoutSessionsService {
         startedAt: session.startedAt,
         finishedAt: session.finishedAt,
         durationSeconds: session.durationSeconds,
-        totalSets,
+        totalSetsLogged,
         volumeKg,
         exercises,
       };
