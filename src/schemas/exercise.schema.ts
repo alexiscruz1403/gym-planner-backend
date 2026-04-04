@@ -56,3 +56,5 @@ export const ExerciseSchema = SchemaFactory.createForClass(Exercise);
 ExerciseSchema.index({ name: 'text' });
 // Compound index for frequent filter queries
 ExerciseSchema.index({ musclesPrimary: 1, loadType: 1 });
+// Catalog search with active filter — most common catalog query pattern
+ExerciseSchema.index({ isActive: 1, name: 1 });

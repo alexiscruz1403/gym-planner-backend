@@ -149,3 +149,5 @@ WorkoutSessionSchema.index({
   'exercises.exerciseId': 1,
   startedAt: -1,
 });
+// Stats period queries (volume by period, volume by muscle) — matches userId + status range + startedAt range
+WorkoutSessionSchema.index({ userId: 1, status: 1, startedAt: 1 });
