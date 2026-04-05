@@ -23,4 +23,6 @@ export enum MuscleGroup {
   HAMSTRINGS = 'hamstrings',
   GLUTES = 'glutes',
   CALVES = 'calves',
+  ADDUCTORS = 'adductors',
+  ABDUCTORS = 'abductors',
 }
