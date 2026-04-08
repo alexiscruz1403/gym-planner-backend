@@ -73,6 +73,17 @@ export class AuthService {
         this.configService.get<number>('JWT_REFRESH_EXPIRATION')! * 1000,
     );
 
+    // Eagerly remove already-expired tokens for this user before inserting a new one.
+    // Belt-and-suspenders alongside the MongoDB TTL index — prevents accumulation
+    // when a user logs in repeatedly without logging out. Valid tokens from other
+    // active sessions (multi-device) are preserved.
+    await this.refreshTokenModel
+      .deleteMany({
+        userId: new Types.ObjectId(userId),
+        expiresAt: { $lte: new Date() },
+      })
+      .exec();
+
     await this.refreshTokenModel.create({
       userId: new Types.ObjectId(userId),
       tokenHash,
