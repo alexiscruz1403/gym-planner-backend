@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import {
   WorkoutSession,
   WorkoutSessionDocument,
@@ -10,6 +12,8 @@ import { SessionStatus } from '../../common/enums/session-status.enum';
 import { ExerciseHistoryQueryDto } from './dto/exercise-history-query.dto';
 import { StatsQueryDto } from './dto/stats-query.dto';
 
+const STATS_CACHE_TTL = 300; // 5 minutes in seconds
+
 @Injectable()
 export class StatsService {
   constructor(
@@ -17,11 +21,29 @@ export class StatsService {
     private readonly sessionModel: Model<WorkoutSessionDocument>,
     @InjectModel(Exercise.name)
     private readonly exerciseModel: Model<ExerciseDocument>,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
   // ─── Exercise History ─────────────────────────────────────────────────────────
 
   async getExerciseHistory(
+    userId: string,
+    exerciseId: string,
+    query: ExerciseHistoryQueryDto,
+  ): // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Promise<any> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const key = `stats:exercise-history:${userId}:${exerciseId}:${page}:${limit}`;
+    const cached = await this.cacheManager.get(key);
+    if (cached) return cached;
+
+    const result = await this._getExerciseHistory(userId, exerciseId, query);
+    await this.cacheManager.set(key, result, STATS_CACHE_TTL);
+    return result;
+  }
+
+  private async _getExerciseHistory(
     userId: string,
     exerciseId: string,
     query: ExerciseHistoryQueryDto,
@@ -117,6 +139,20 @@ export class StatsService {
   // ─── Volume by Period ─────────────────────────────────────────────────────────
 
   async getVolumeByPeriod(
+    userId: string,
+    query: StatsQueryDto,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any> {
+    const key = `stats:volume:${userId}:${query.period}:${query.date}`;
+    const cached = await this.cacheManager.get(key);
+    if (cached) return cached;
+
+    const result = await this._getVolumeByPeriod(userId, query);
+    await this.cacheManager.set(key, result, STATS_CACHE_TTL);
+    return result;
+  }
+
+  private async _getVolumeByPeriod(
     userId: string,
     query: StatsQueryDto,
   ): Promise<{
@@ -225,6 +261,20 @@ export class StatsService {
   // ─── Volume by Muscle ─────────────────────────────────────────────────────────
 
   async getVolumeByMuscle(
+    userId: string,
+    query: StatsQueryDto,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any> {
+    const key = `stats:muscles:${userId}:${query.period}:${query.date}`;
+    const cached = await this.cacheManager.get(key);
+    if (cached) return cached;
+
+    const result = await this._getVolumeByMuscle(userId, query);
+    await this.cacheManager.set(key, result, STATS_CACHE_TTL);
+    return result;
+  }
+
+  private async _getVolumeByMuscle(
     userId: string,
     query: StatsQueryDto,
   ): Promise<{

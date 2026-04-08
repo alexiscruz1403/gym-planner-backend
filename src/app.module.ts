@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { CacheModule } from '@nestjs/cache-manager';
 import { envValidationSchema } from './config/env.validation';
 import { getDatabaseConfig } from './config/database.config';
 import { APP_GUARD } from '@nestjs/core';
@@ -30,6 +31,13 @@ import { AdminModule } from './modules/admin/admin.module';
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: getDatabaseConfig,
+    }),
+
+    // Global in-memory cache — user-specific endpoints use manual get/set with userId keys
+    CacheModule.register({
+      isGlobal: true,
+      ttl: 300, // default 5 minutes (in seconds)
+      max: 500, // max 500 items in LRU cache
     }),
 
     // Global rate limiting: 100 requests per 60 seconds per IP

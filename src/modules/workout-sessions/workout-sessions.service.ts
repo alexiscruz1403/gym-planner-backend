@@ -3,9 +3,12 @@ import {
   NotFoundException,
   ForbiddenException,
   UnprocessableEntityException,
+  Inject,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import {
   WorkoutSession,
   WorkoutSessionDocument,
@@ -25,6 +28,8 @@ import { FinishSessionDto } from './dto/finish-session.dto';
 import { HistoryQueryDto } from './dto/history-query.dto';
 import { PublicSessionHistoryQueryDto } from './dto/public-session-history-query.dto';
 
+const SESSIONS_CACHE_TTL = 120; // 2 minutes in seconds
+
 @Injectable()
 export class WorkoutSessionsService {
   constructor(
@@ -34,6 +39,7 @@ export class WorkoutSessionsService {
     private readonly workoutPlanModel: Model<WorkoutPlanDocument>,
     @InjectModel(Exercise.name)
     private readonly exerciseModel: Model<ExerciseDocument>,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
   // ─── Start Session ────────────────────────────────────────────────────────────
@@ -273,6 +279,10 @@ export class WorkoutSessionsService {
 
     await session.save();
 
+    // Flush entire cache: finishing a session invalidates session history,
+    // stats (volume, muscles, exercise history) and plans simultaneously.
+    await this.cacheManager.clear();
+
     return session;
   }
 
@@ -320,10 +330,32 @@ export class WorkoutSessionsService {
     sessionId: string,
     userId: string,
   ): Promise<WorkoutSessionDocument> {
-    return this.findSessionAndVerifyOwnership(sessionId, userId);
+    const key = `sessions:detail:${sessionId}`;
+    const cached = await this.cacheManager.get<WorkoutSessionDocument>(key);
+    if (cached) return cached;
+
+    const session = await this.findSessionAndVerifyOwnership(sessionId, userId);
+    await this.cacheManager.set(key, session, SESSIONS_CACHE_TTL);
+    return session;
   }
 
   async getSessionHistory(
+    userId: string,
+    query: HistoryQueryDto,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const key = `sessions:history:${userId}:${page}:${limit}`;
+    const cached = await this.cacheManager.get(key);
+    if (cached) return cached;
+
+    const result = await this._getSessionHistory(userId, query);
+    await this.cacheManager.set(key, result, SESSIONS_CACHE_TTL);
+    return result;
+  }
+
+  private async _getSessionHistory(
     userId: string,
     query: HistoryQueryDto,
   ): Promise<{
