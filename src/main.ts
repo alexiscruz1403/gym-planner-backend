@@ -4,14 +4,17 @@ import { VersioningType } from '@nestjs/common';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { LoggingInterceptor } from './common/interceptors';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  app.use(cookieParser());
+
   app.enableCors({
     origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type'],
     credentials: true,
   });
 
@@ -38,9 +41,9 @@ async function bootstrap() {
       .setDescription(
         'REST API for the Gym Planner application.\n\n' +
           '## Authentication\n' +
-          'Most endpoints require a JWT access token.\n' +
-          'Use `POST /auth/register` or `POST /auth/login` to obtain one, ' +
-          'then click **Authorize** and paste the token.',
+          'Auth uses **httpOnly cookies** (`access_token`, `refresh_token`).\n' +
+          'Use `POST /auth/register` or `POST /auth/login` — cookies are set automatically.\n' +
+          'The Swagger Authorize button is not functional for cookie-based auth.',
       )
       .setVersion('1.0')
       .addBearerAuth(
