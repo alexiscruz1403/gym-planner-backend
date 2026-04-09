@@ -2,9 +2,12 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  Inject,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, QueryFilter } from 'mongoose';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { Exercise, ExerciseDocument } from '../../schemas/exercise.schema';
 import { CreateExerciseDto } from './dto/create-exercise.dto';
 import { UpdateExerciseDto } from './dto/update-exercise.dto';
@@ -19,6 +22,7 @@ export class ExercisesService {
   constructor(
     @InjectModel(Exercise.name)
     private readonly exerciseModel: Model<ExerciseDocument>,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -100,6 +104,7 @@ export class ExercisesService {
       musclesSecondary: dto.musclesSecondary ?? [],
     });
 
+    await this.cacheManager.clear();
     return this.toResponseDto(exercise);
   }
 
@@ -119,6 +124,7 @@ export class ExercisesService {
       throw new NotFoundException('Exercise not found');
     }
 
+    await this.cacheManager.clear();
     return this.toResponseDto(exercise);
   }
 
@@ -135,6 +141,7 @@ export class ExercisesService {
       throw new NotFoundException('Exercise not found');
     }
 
+    await this.cacheManager.clear();
     return { message: 'Exercise deactivated successfully' };
   }
 }

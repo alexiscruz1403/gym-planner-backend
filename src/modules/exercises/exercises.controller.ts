@@ -8,9 +8,11 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
 import {
   ApiTags,
   ApiOperation,
@@ -35,6 +37,8 @@ export class ExercisesController {
   constructor(private readonly exercisesService: ExercisesService) {}
 
   @Get()
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(300)
   @ApiOperation({ summary: 'List and search the exercise catalog' })
   @ApiResponse({ status: 200, type: ExerciseListResponseDto })
   findAll(@Query() query: ExerciseQueryDto): Promise<ExerciseListResponseDto> {
@@ -42,6 +46,8 @@ export class ExercisesController {
   }
 
   @Get(':id')
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(300)
   @ApiOperation({ summary: 'Get exercise detail by ID' })
   @ApiResponse({ status: 200, type: ExerciseResponseDto })
   @ApiResponse({ status: 404, description: 'Exercise not found' })

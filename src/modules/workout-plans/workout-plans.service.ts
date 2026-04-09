@@ -3,9 +3,12 @@ import {
   NotFoundException,
   ForbiddenException,
   UnprocessableEntityException,
+  Inject,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import {
   WorkoutPlan,
   WorkoutPlanDocument,
@@ -25,6 +28,7 @@ import {
 } from './dto/workout-plan-response.dto';
 
 const MAX_PLANS_PER_USER = 3;
+const PLANS_CACHE_TTL = 120; // 2 minutes in seconds
 
 @Injectable()
 export class WorkoutPlansService {
@@ -33,7 +37,18 @@ export class WorkoutPlansService {
     private readonly workoutPlanModel: Model<WorkoutPlanDocument>,
     @InjectModel(Exercise.name)
     private readonly exerciseModel: Model<ExerciseDocument>,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
+
+  private async invalidatePlanCache(userId: string, planId?: string) {
+    await Promise.all([
+      this.cacheManager.del(`workout-plans:list:${userId}`),
+      this.cacheManager.del(`workout-plans:active:${userId}`),
+      ...(planId
+        ? [this.cacheManager.del(`workout-plans:detail:${userId}:${planId}`)]
+        : []),
+    ]);
+  }
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -114,15 +129,25 @@ export class WorkoutPlansService {
   // ─── Queries ─────────────────────────────────────────────────────────────────
 
   async findAll(userId: string): Promise<WorkoutPlanSummaryDto[]> {
+    const key = `workout-plans:list:${userId}`;
+    const cached = await this.cacheManager.get<WorkoutPlanSummaryDto[]>(key);
+    if (cached) return cached;
+
     const plans = await this.workoutPlanModel
       .find({ userId: new Types.ObjectId(userId) })
       .sort({ createdAt: -1 })
       .exec();
 
-    return plans.map((p) => this.toSummaryDto(p));
+    const result = plans.map((p) => this.toSummaryDto(p));
+    await this.cacheManager.set(key, result, PLANS_CACHE_TTL);
+    return result;
   }
 
   async findActive(userId: string): Promise<WorkoutPlanResponseDto> {
+    const key = `workout-plans:active:${userId}`;
+    const cached = await this.cacheManager.get<WorkoutPlanResponseDto>(key);
+    if (cached) return cached;
+
     const plan = await this.workoutPlanModel
       .findOne({ userId: new Types.ObjectId(userId), isActive: true })
       .exec();
@@ -131,10 +156,16 @@ export class WorkoutPlansService {
       throw new NotFoundException('No active plan found');
     }
 
-    return this.toResponseDto(plan);
+    const result = this.toResponseDto(plan);
+    await this.cacheManager.set(key, result, PLANS_CACHE_TTL);
+    return result;
   }
 
   async findById(id: string, userId: string): Promise<WorkoutPlanResponseDto> {
+    const key = `workout-plans:detail:${userId}:${id}`;
+    const cached = await this.cacheManager.get<WorkoutPlanResponseDto>(key);
+    if (cached) return cached;
+
     const plan = await this.workoutPlanModel.findById(id).exec();
 
     if (!plan) {
@@ -147,7 +178,9 @@ export class WorkoutPlansService {
       );
     }
 
-    return this.toResponseDto(plan);
+    const result = this.toResponseDto(plan);
+    await this.cacheManager.set(key, result, PLANS_CACHE_TTL);
+    return result;
   }
 
   // ─── Commands ────────────────────────────────────────────────────────────────
@@ -174,6 +207,7 @@ export class WorkoutPlansService {
       days,
     });
 
+    await this.invalidatePlanCache(userId);
     return this.toResponseDto(plan);
   }
 
@@ -205,6 +239,7 @@ export class WorkoutPlansService {
 
     await plan.save();
 
+    await this.invalidatePlanCache(userId, id);
     return this.toResponseDto(plan);
   }
 
@@ -223,6 +258,7 @@ export class WorkoutPlansService {
 
     await this.workoutPlanModel.findByIdAndDelete(id).exec();
 
+    await this.invalidatePlanCache(userId, id);
     return { message: 'Plan deleted successfully' };
   }
 
@@ -255,6 +291,7 @@ export class WorkoutPlansService {
       .findByIdAndUpdate(id, { $set: { isActive: true } })
       .exec();
 
+    await this.invalidatePlanCache(userId, id);
     return {
       message: 'Plan activated successfully',
       activePlanId: id,

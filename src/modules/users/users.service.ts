@@ -2,9 +2,12 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  Inject,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { User, UserDocument } from '../../schemas/user.schema';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserResponseDto } from './dto/user-response.dto';
@@ -14,6 +17,8 @@ import { AuthService } from '../auth/auth.service';
 import { UploadService } from './upload.service';
 import { SocialService } from '../social/social.service';
 
+const PROFILE_CACHE_TTL = 300; // 5 minutes in seconds
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -21,6 +26,7 @@ export class UsersService {
     private readonly authService: AuthService,
     private readonly uploadService: UploadService,
     private readonly socialService: SocialService,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
   async findPublicProfile(
@@ -83,9 +89,16 @@ export class UsersService {
   }
 
   async findById(id: string): Promise<UserResponseDto> {
+    const key = `user:profile:${id}`;
+    const cached = await this.cacheManager.get<UserResponseDto>(key);
+    if (cached) return cached;
+
     const user = await this.userModel.findById(id).exec();
     if (!user) throw new NotFoundException('User not found');
-    return this.authService.toResponseDto(user);
+
+    const result = this.authService.toResponseDto(user);
+    await this.cacheManager.set(key, result, PROFILE_CACHE_TTL);
+    return result;
   }
 
   async updateProfile(
@@ -109,6 +122,7 @@ export class UsersService {
 
     if (!user) throw new NotFoundException('User not found');
 
+    await this.cacheManager.del(`user:profile:${id}`);
     return this.authService.toResponseDto(user);
   }
 
@@ -124,6 +138,7 @@ export class UsersService {
 
     if (!user) throw new NotFoundException('User not found');
 
+    await this.cacheManager.del(`user:profile:${id}`);
     return this.authService.toResponseDto(user);
   }
 }

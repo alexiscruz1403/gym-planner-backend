@@ -4,12 +4,14 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import type { Request } from 'express';
 import { User, UserDocument } from '../../../schemas/user.schema';
 import { JwtPayload } from '../../../common/decorators/current-user.decorator';
+import { COOKIE_NAMES } from '../cookie.config';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
@@ -25,7 +27,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     return {
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: (req: Request) =>
+        req?.cookies?.[COOKIE_NAMES.ACCESS] ?? null,
       ignoreExpiration: false,
       secretOrKey: jwtSecret,
     };
