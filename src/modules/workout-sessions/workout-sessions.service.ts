@@ -154,6 +154,9 @@ export class WorkoutSessionsService {
       );
     }
 
+    // Eliminar cualquier set incompleto (completed === false) antes de registrar el nuevo set
+    exercise.sets = exercise.sets.filter((s) => s.completed !== false);
+
     // Idempotent upsert by setIndex — handles mobile network retries
     const existingIndex = exercise.sets.findIndex(
       (s) => s.setIndex === dto.setIndex,
@@ -167,6 +170,17 @@ export class WorkoutSessionsService {
       completed: dto.completed,
       loggedAt: new Date(),
     };
+
+    if (existingIndex >= 0 && newSet.completed === false) {
+      // Si el set existe y el nuevo set es incompleto, lo eliminamos
+      exercise.sets.splice(existingIndex, 1);
+      session.markModified('exercises');
+      await session.save();
+      return {
+        exerciseId: dto.exerciseId,
+        sets: exercise.sets,
+      };
+    }
 
     if (existingIndex >= 0) {
       exercise.sets[existingIndex] = newSet;
