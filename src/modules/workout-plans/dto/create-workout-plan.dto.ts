@@ -16,6 +16,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DayOfWeek } from '../../../common/enums/day-of-week.enum';
+import { WeightUnit } from '../../../common/enums/weight-unit.enum';
 
 export class CreateExerciseConfigDto {
   @ApiProperty({ description: 'Exercise ID from the catalog' })
@@ -51,6 +52,15 @@ export class CreateExerciseConfigDto {
   @Min(0)
   weight?: number;
 
+  @ApiPropertyOptional({
+    enum: WeightUnit,
+    default: WeightUnit.KG,
+    description: 'Unit of measurement for the weight field. Defaults to kg.',
+  })
+  @IsOptional()
+  @IsEnum(WeightUnit)
+  weightUnit?: WeightUnit;
+
   @ApiProperty({ description: 'Rest between sets in seconds', minimum: 0 })
   @IsInt()
   @Min(0)
@@ -77,6 +87,15 @@ export class CreatePlanDayDto {
   @ApiProperty({ enum: DayOfWeek })
   @IsEnum(DayOfWeek)
   dayOfWeek: DayOfWeek;
+
+  @ApiPropertyOptional({
+    description: 'Optional custom label for this day (e.g., "Push", "Legs A")',
+    maxLength: 100,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  dayName?: string;
 
   @ApiPropertyOptional({ type: [CreateExerciseConfigDto] })
   @IsOptional()

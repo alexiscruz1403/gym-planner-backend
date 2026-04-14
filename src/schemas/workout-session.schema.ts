@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { DayOfWeek } from '../common/enums/day-of-week.enum';
 import { SessionStatus } from '../common/enums/session-status.enum';
+import { WeightUnit } from '../common/enums/weight-unit.enum';
 
 export type WorkoutSessionDocument = HydratedDocument<WorkoutSession>;
 
@@ -75,6 +76,15 @@ export class SessionExercise {
   @Prop({ required: false, min: 0 })
   plannedWeight?: number; // kg
 
+  // Snapshotted from ExerciseConfig at session start. Can be changed via modify/replace endpoint.
+  @Prop({
+    type: String,
+    enum: Object.values(WeightUnit),
+    required: true,
+    default: WeightUnit.KG,
+  })
+  weightUnit: WeightUnit;
+
   @Prop({ required: true, min: 0 })
   plannedRest: number; // seconds between sets
 
@@ -107,6 +117,10 @@ export class WorkoutSession {
 
   @Prop({ type: String, enum: Object.values(DayOfWeek), required: true })
   dayOfWeek: DayOfWeek;
+
+  // Snapshot of the custom day name from the plan day (e.g., "Push", "Legs A"). Null if not set.
+  @Prop({ required: false })
+  dayName?: string;
 
   @Prop({
     type: String,

@@ -21,12 +21,14 @@ import {
 } from '../../schemas/workout-plan.schema';
 import { Exercise, ExerciseDocument } from '../../schemas/exercise.schema';
 import { SessionStatus } from '../../common/enums/session-status.enum';
+import { WeightUnit } from '../../common/enums/weight-unit.enum';
 import { StartSessionDto } from './dto/start-session.dto';
 import { LogSetDto } from './dto/log-set.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 import { FinishSessionDto } from './dto/finish-session.dto';
 import { HistoryQueryDto } from './dto/history-query.dto';
 import { PublicSessionHistoryQueryDto } from './dto/public-session-history-query.dto';
+import { ModifyExerciseDto } from './dto/modify-exercise.dto';
 
 const SESSIONS_CACHE_TTL = 120; // 2 minutes in seconds
 
@@ -88,6 +90,7 @@ export class WorkoutSessionsService {
         plannedReps: config.reps ?? undefined,
         plannedDuration: config.duration ?? undefined,
         plannedWeight: config.weight ?? undefined,
+        weightUnit: config.weightUnit ?? WeightUnit.KG,
         plannedRest: config.rest,
         sets: [],
         modifiedDuringSession: false,
@@ -125,6 +128,7 @@ export class WorkoutSessionsService {
       planId: activePlan._id,
       planName: activePlan.name,
       dayOfWeek: dto.dayOfWeek,
+      dayName: planDay.dayName ?? undefined,
       status: SessionStatus.IN_PROGRESS,
       startedAt: new Date(),
       exercises,
@@ -239,6 +243,7 @@ export class WorkoutSessionsService {
     // Build the replacement preserving slot position and superset membership.
     // Planned config uses dto values if provided, otherwise falls back to
     // the original exercise's planned values.
+    // weightUnit always defaults to kg on a replacement — never inherited from original.
     const replacement: SessionExercise = {
       exerciseId: newExercise._id as Types.ObjectId,
       exerciseName: newExercise.name,
@@ -250,6 +255,7 @@ export class WorkoutSessionsService {
       plannedDuration: dto.plannedDuration ?? original.plannedDuration,
       plannedWeight: dto.plannedWeight ?? original.plannedWeight,
       plannedRest: dto.plannedRest ?? original.plannedRest,
+      weightUnit: dto.weightUnit ?? WeightUnit.KG,
       sets: [],
       modifiedDuringSession: true,
     };
@@ -261,6 +267,47 @@ export class WorkoutSessionsService {
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { sets: _sets, ...replacementWithoutSets } = replacement;
+
+    return replacementWithoutSets;
+  }
+
+  // ─── Modify Exercise ───────────────────────────────────────────────────────────
+  async modifyExercise(
+    sessionId: string,
+    exerciseId: string,
+    userId: string,
+    dto: ModifyExerciseDto,
+  ): Promise<Omit<SessionExercise, 'sets'>> {
+    const session = await this.findSessionAndVerifyOwnership(sessionId, userId);
+    this.assertInProgress(session);
+
+    const exerciseIndex = session.exercises.findIndex(
+      (e) => e.exerciseId.toString() === exerciseId,
+    );
+
+    if (exerciseIndex === -1) {
+      throw new UnprocessableEntityException(
+        `Exercise ${exerciseId} not found in this session`,
+      );
+    }
+
+    const original = session.exercises[exerciseIndex];
+
+    original.plannedSets = dto.plannedSets ?? original.plannedSets;
+    original.plannedReps = dto.plannedReps ?? original.plannedReps;
+    original.plannedDuration = dto.plannedDuration ?? original.plannedDuration;
+    original.plannedWeight = dto.plannedWeight ?? original.plannedWeight;
+    original.plannedRest = dto.plannedRest ?? original.plannedRest;
+    original.weightUnit = dto.weightUnit ?? original.weightUnit;
+    original.modifiedDuringSession = true;
+
+    session.exercises[exerciseIndex] =
+      original as (typeof session.exercises)[number];
+    session.markModified('exercises');
+    await session.save();
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { sets: _sets, ...replacementWithoutSets } = original;
 
     return replacementWithoutSets;
   }
@@ -377,6 +424,7 @@ export class WorkoutSessionsService {
       _id: string;
       planName: string;
       dayOfWeek: string;
+      dayName: string | null;
       status: SessionStatus;
       startedAt: Date;
       finishedAt?: Date;
@@ -425,6 +473,7 @@ export class WorkoutSessionsService {
         _id: session._id.toString(),
         planName: session.planName,
         dayOfWeek: session.dayOfWeek,
+        dayName: session.dayName ?? null,
         status: session.status,
         startedAt: session.startedAt,
         finishedAt: session.finishedAt,
@@ -453,6 +502,7 @@ export class WorkoutSessionsService {
       _id: string;
       planName: string;
       dayOfWeek: string;
+      dayName: string | null;
       status: SessionStatus;
       startedAt: Date;
       finishedAt?: Date;
@@ -518,6 +568,7 @@ export class WorkoutSessionsService {
         _id: session._id.toString(),
         planName: session.planName,
         dayOfWeek: session.dayOfWeek,
+        dayName: session.dayName ?? null,
         status: session.status,
         startedAt: session.startedAt,
         finishedAt: session.finishedAt,

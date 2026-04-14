@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Put,
   Patch,
   Delete,
   Body,
@@ -19,6 +20,7 @@ import {
 import { WorkoutSessionsService } from './workout-sessions.service';
 import { StartSessionDto } from './dto/start-session.dto';
 import { LogSetDto } from './dto/log-set.dto';
+import { ModifyExerciseDto } from './dto/modify-exercise.dto';
 import { ReplaceExerciseDto } from './dto/replace-exercise.dto';
 import { FinishSessionDto } from './dto/finish-session.dto';
 import { HistoryQueryDto } from './dto/history-query.dto';
@@ -118,7 +120,7 @@ export class WorkoutSessionsController {
     return this.workoutSessionsService.logSet(id, user.sub, dto);
   }
 
-  @Patch(':id/exercises/:exerciseId')
+  @Put(':id/exercises/:exerciseId')
   @ApiOperation({
     summary:
       'Replace an exercise in the session with a different one from the catalog. The slot position and superset group are preserved. Previously logged sets for the original exercise are discarded.',
@@ -143,6 +145,38 @@ export class WorkoutSessionsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.workoutSessionsService.replaceExercise(
+      id,
+      exerciseId,
+      user.sub,
+      dto,
+    );
+  }
+
+  @Patch(':id/exercises/:exerciseId')
+  @ApiOperation({
+    summary:
+      'Modify an exercise in the session. The slot position and superset group are preserved.',
+  })
+  @ApiResponse({ status: 200, description: 'Exercise modified successfully' })
+  @ApiResponse({
+    status: 403,
+    description: 'Session does not belong to the authenticated user',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Session not found or new exercise not in catalog',
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'Session not in progress or original exercise not found',
+  })
+  modifyExercise(
+    @Param('id') id: string,
+    @Param('exerciseId') exerciseId: string,
+    @Body() dto: ModifyExerciseDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.workoutSessionsService.modifyExercise(
       id,
       exerciseId,
       user.sub,

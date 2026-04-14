@@ -30,11 +30,17 @@ export class ExerciseConfigResponseDto {
 
   @ApiPropertyOptional({ nullable: true })
   supersetGroupId: string | null;
+
+  @ApiProperty()
+  weightUnit: string;
 }
 
 export class PlanDayResponseDto {
   @ApiProperty()
   dayOfWeek: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  dayName: string | null;
 
   @ApiProperty({ type: [ExerciseConfigResponseDto] })
   exercises: ExerciseConfigResponseDto[];

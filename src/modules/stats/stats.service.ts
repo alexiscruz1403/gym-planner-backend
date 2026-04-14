@@ -54,6 +54,7 @@ export class StatsService {
       sessionId: string;
       sessionDate: Date;
       dayOfWeek: string;
+      weightUnit?: string;
       sets: {
         setIndex: number;
         reps?: number;
@@ -110,6 +111,7 @@ export class StatsService {
         sessionId: session._id.toString(),
         sessionDate: session.startedAt,
         dayOfWeek: session.dayOfWeek,
+        weightUnit: exercise?.weightUnit,
         sets: exercise
           ? exercise.sets.map((s) => ({
               setIndex: s.setIndex,

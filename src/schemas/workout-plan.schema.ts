@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { DayOfWeek } from '../common/enums/day-of-week.enum';
+import { WeightUnit } from '../common/enums/weight-unit.enum';
 
 export type WorkoutPlanDocument = HydratedDocument<WorkoutPlan>;
 
@@ -31,6 +32,14 @@ export class ExerciseConfig {
   @Prop({ required: false, min: 0 })
   weight?: number; // kg — optional for bodyweight exercises
 
+  @Prop({
+    type: String,
+    enum: Object.values(WeightUnit),
+    required: true,
+    default: WeightUnit.KG,
+  })
+  weightUnit: WeightUnit;
+
   @Prop({ required: true, min: 0 })
   rest: number; // seconds between sets
 
@@ -51,6 +60,10 @@ export const ExerciseConfigSchema =
 export class PlanDay {
   @Prop({ type: String, enum: Object.values(DayOfWeek), required: true })
   dayOfWeek: DayOfWeek;
+
+  // Optional custom label for the day (e.g., "Push", "Legs A")
+  @Prop({ required: false, trim: true, maxlength: 100 })
+  dayName?: string;
 
   @Prop({ type: [ExerciseConfigSchema], default: [] })
   exercises: ExerciseConfig[];
