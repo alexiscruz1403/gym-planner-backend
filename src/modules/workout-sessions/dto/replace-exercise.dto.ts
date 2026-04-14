@@ -1,5 +1,13 @@
-import { IsInt, IsMongoId, IsNumber, IsOptional, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsMongoId,
+  IsNumber,
+  IsOptional,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { WeightUnit } from '../../../common/enums/weight-unit.enum';
 
 export class ReplaceExerciseDto {
   @ApiProperty({
@@ -46,4 +54,13 @@ export class ReplaceExerciseDto {
   @IsInt()
   @Min(0)
   plannedRest?: number;
+
+  @ApiPropertyOptional({
+    enum: WeightUnit,
+    description:
+      'Weight unit for the replacement exercise. Defaults to kg — never inherited from the original.',
+  })
+  @IsOptional()
+  @IsEnum(WeightUnit)
+  weightUnit?: WeightUnit;
 }

@@ -1,5 +1,6 @@
-import { IsInt, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsEnum, IsInt, IsNumber, IsOptional, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { WeightUnit } from '../../../common/enums/weight-unit.enum';
 
 export class ModifyExerciseDto {
   @ApiPropertyOptional({ description: 'New target number of sets', minimum: 1 })
@@ -37,4 +38,12 @@ export class ModifyExerciseDto {
   @IsInt()
   @Min(0)
   plannedRest?: number;
+
+  @ApiPropertyOptional({
+    enum: WeightUnit,
+    description: 'New weight unit for this exercise within the session.',
+  })
+  @IsOptional()
+  @IsEnum(WeightUnit)
+  weightUnit?: WeightUnit;
 }

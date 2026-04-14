@@ -19,6 +19,7 @@ import {
   CreateWorkoutPlanDto,
   CreateExerciseConfigDto,
 } from './dto/create-workout-plan.dto';
+import { WeightUnit } from '../../common/enums/weight-unit.enum';
 import { UpdateWorkoutPlanDto } from './dto/update-workout-plan.dto';
 import {
   WorkoutPlanResponseDto,
@@ -63,6 +64,7 @@ export class WorkoutPlansService {
       reps: config.reps ?? null,
       duration: config.duration ?? null,
       weight: config.weight ?? null,
+      weightUnit: config.weightUnit ?? WeightUnit.KG,
       rest: config.rest,
       notes: config.notes ?? null,
       supersetGroupId: config.supersetGroupId ?? null,
@@ -74,6 +76,7 @@ export class WorkoutPlansService {
   ): PlanDayResponseDto {
     return {
       dayOfWeek: day.dayOfWeek,
+      dayName: day.dayName ?? null,
       exercises: day.exercises.map((e) => this.toExerciseConfigResponse(e)),
     };
   }
@@ -321,6 +324,7 @@ export class WorkoutPlansService {
 
     return daysDto.map((dayDto) => ({
       dayOfWeek: dayDto.dayOfWeek,
+      dayName: dayDto.dayName,
       exercises: (dayDto.exercises ?? []).map((exerciseDto) => {
         const key = `${globalIndex}:${exerciseDto.exerciseId}`;
         const exerciseName = nameResolutions.get(key) ?? '';
@@ -333,6 +337,7 @@ export class WorkoutPlansService {
           reps: exerciseDto.reps,
           duration: exerciseDto.duration,
           weight: exerciseDto.weight,
+          weightUnit: exerciseDto.weightUnit ?? WeightUnit.KG,
           rest: exerciseDto.rest,
           notes: exerciseDto.notes,
           supersetGroupId: exerciseDto.supersetGroupId,
