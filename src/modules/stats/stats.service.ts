@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, PipelineStage, Types } from 'mongoose';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import {
@@ -165,19 +165,24 @@ export class StatsService {
     totalVolume: number;
     totalSets: number;
     totalSessions: number;
+    hasLbsExercises: boolean;
     breakdown: {
       label: string;
       volume: number;
       sets: number;
       sessions: number;
     }[];
+    previousTotalVolume: number;
+    changePercent: number | null;
   }> {
     const { from, to } = this.parseDateRange(query.period, query.date);
 
     const labelExpression = this.buildLabelExpression(query.period);
+    const normalizedWeight = this.normalizedWeightExpr;
 
     // Pipeline: unwind exercises → unwind sets → filter completed sets with weight
     // → group by label to produce the per-sub-period breakdown
+    // Weight is normalized to kg: lbs values are divided by 2.20462
     const breakdownPipeline = [
       {
         $match: {
@@ -200,12 +205,14 @@ export class StatsService {
           _id: labelExpression,
           volume: {
             $sum: {
-              $multiply: ['$exercises.sets.reps', '$exercises.sets.weight'],
+              $multiply: ['$exercises.sets.reps', normalizedWeight],
             },
           },
           sets: { $sum: 1 },
           // Track distinct session IDs to compute sessions-per-label
           sessionIds: { $addToSet: '$_id' },
+          // Track if any exercise used lbs
+          units: { $addToSet: '$exercises.weightUnit' },
         },
       },
       { $sort: { _id: 1 as const } },
@@ -223,13 +230,52 @@ export class StatsService {
       { $count: 'total' },
     ];
 
-    const [breakdownRaw, sessionsRaw] = await Promise.all([
+    // Previous period — same aggregation but for the preceding range
+    const { from: prevFrom, to: prevTo } = this.getPreviousDateRange(
+      query.period,
+      query.date,
+    );
+
+    const prevVolumePipeline = [
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          status: { $in: [SessionStatus.COMPLETED, SessionStatus.PARTIAL] },
+          startedAt: { $gte: prevFrom, $lte: prevTo },
+        },
+      },
+      { $unwind: '$exercises' },
+      { $unwind: '$exercises.sets' },
+      {
+        $match: {
+          'exercises.sets.completed': true,
+          'exercises.sets.weight': { $ne: null },
+          'exercises.sets.reps': { $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          volume: {
+            $sum: {
+              $multiply: ['$exercises.sets.reps', normalizedWeight],
+            },
+          },
+        },
+      },
+    ];
+
+    const [breakdownRaw, sessionsRaw, prevVolumeRaw] = await Promise.all([
       this.sessionModel.aggregate(breakdownPipeline).exec(),
       this.sessionModel.aggregate(sessionsPipeline).exec(),
+      this.sessionModel.aggregate(prevVolumePipeline).exec(),
     ]);
 
     const totalSessions: number =
       sessionsRaw.length > 0 ? (sessionsRaw[0].total as number) : 0;
+
+    // Collect all units across all breakdown buckets
+    const allUnits = new Set<string>();
 
     const breakdown = (
       breakdownRaw as {
@@ -237,16 +283,36 @@ export class StatsService {
         volume: number;
         sets: number;
         sessionIds: unknown[];
+        units: string[];
       }[]
-    ).map((item) => ({
-      label: item._id,
-      volume: item.volume,
-      sets: item.sets,
-      sessions: item.sessionIds.length,
-    }));
+    ).map((item) => {
+      item.units.forEach((u) => allUnits.add(u));
+      return {
+        label: item._id,
+        volume: Math.round(item.volume * 100) / 100,
+        sets: item.sets,
+        sessions: item.sessionIds.length,
+      };
+    });
 
-    const totalVolume = breakdown.reduce((acc, b) => acc + b.volume, 0);
+    const totalVolume =
+      Math.round(breakdown.reduce((acc, b) => acc + b.volume, 0) * 100) / 100;
     const totalSets = breakdown.reduce((acc, b) => acc + b.sets, 0);
+
+    const previousTotalVolume =
+      prevVolumeRaw.length > 0
+        ? Math.round((prevVolumeRaw[0] as { volume: number }).volume * 100) /
+          100
+        : 0;
+
+    const changePercent =
+      previousTotalVolume === 0
+        ? null
+        : Math.round(
+            ((totalVolume - previousTotalVolume) / previousTotalVolume) *
+              100 *
+              100,
+          ) / 100;
 
     return {
       period: query.period,
@@ -256,7 +322,10 @@ export class StatsService {
       totalVolume,
       totalSets,
       totalSessions,
+      hasLbsExercises: allUnits.has('lbs'),
       breakdown,
+      previousTotalVolume,
+      changePercent,
     };
   }
 
@@ -284,24 +353,35 @@ export class StatsService {
     date: string;
     from: Date;
     to: Date;
-    ranking: { rank: number; muscle: string; volume: number; sets: number }[];
+    hasLbsExercises: boolean;
+    ranking: {
+      rank: number;
+      muscle: string;
+      volume: number;
+      sets: number;
+      previousVolume: number;
+      changePercent: number | null;
+    }[];
   }> {
     const { from, to } = this.parseDateRange(query.period, query.date);
+    const { from: prevFrom, to: prevTo } = this.getPreviousDateRange(
+      query.period,
+      query.date,
+    );
 
-    // Pipeline:
-    // 1. Match sessions in the period
-    // 2. Unwind exercises
-    // 3. $lookup to join Exercise catalog by exerciseId → get musclesPrimary
-    // 4. Unwind catalog result and musclesPrimary
-    // 5. Unwind sets, filter completed sets with weight
-    // 6. Group by primary muscle, summing volume and sets
-    // 7. Sort by volume descending
-    const pipeline = [
+    const normalizedWeight = this.normalizedWeightExpr;
+
+    // Pipeline builder for muscle volume — reused for current and previous period.
+    // Weight is normalized to kg: lbs values are divided by 2.20462.
+    const buildMusclePipeline = (
+      rangeFrom: Date,
+      rangeTo: Date,
+    ): PipelineStage[] => [
       {
         $match: {
           userId: new Types.ObjectId(userId),
           status: { $in: [SessionStatus.COMPLETED, SessionStatus.PARTIAL] },
-          startedAt: { $gte: from, $lte: to },
+          startedAt: { $gte: rangeFrom, $lte: rangeTo },
         },
       },
       { $unwind: '$exercises' },
@@ -329,33 +409,64 @@ export class StatsService {
           _id: '$catalogExercise.musclesPrimary',
           volume: {
             $sum: {
-              $multiply: ['$exercises.sets.reps', '$exercises.sets.weight'],
+              $multiply: ['$exercises.sets.reps', normalizedWeight],
             },
           },
           sets: { $sum: 1 },
+          units: { $addToSet: '$exercises.weightUnit' },
         },
       },
       { $sort: { volume: -1 as const } },
     ];
 
-    const raw = (await this.sessionModel.aggregate(pipeline).exec()) as {
-      _id: string;
-      volume: number;
-      sets: number;
-    }[];
+    const [currentRaw, previousRaw] = await Promise.all([
+      this.sessionModel
+        .aggregate(buildMusclePipeline(from, to))
+        .exec() as Promise<
+        { _id: string; volume: number; sets: number; units: string[] }[]
+      >,
+      this.sessionModel
+        .aggregate(buildMusclePipeline(prevFrom, prevTo))
+        .exec() as Promise<
+        { _id: string; volume: number; sets: number; units: string[] }[]
+      >,
+    ]);
 
-    const ranking = raw.map((item, index) => ({
-      rank: index + 1,
-      muscle: item._id,
-      volume: item.volume,
-      sets: item.sets,
-    }));
+    // Build a lookup map for previous period volumes per muscle
+    const prevVolumeMap = new Map<string, number>();
+    for (const item of previousRaw) {
+      prevVolumeMap.set(item._id, Math.round(item.volume * 100) / 100);
+    }
+
+    const allUnits = new Set<string>();
+
+    const ranking = currentRaw.map((item, index) => {
+      item.units.forEach((u) => allUnits.add(u));
+      const volume = Math.round(item.volume * 100) / 100;
+      const previousVolume = prevVolumeMap.get(item._id) ?? 0;
+      const changePercent =
+        previousVolume === 0
+          ? null
+          : Math.round(
+              ((volume - previousVolume) / previousVolume) * 100 * 100,
+            ) / 100;
+
+      return {
+        rank: index + 1,
+        muscle: item._id,
+        volume,
+        sets: item.sets,
+        previousVolume,
+        changePercent,
+      };
+    });
 
     return {
       period: query.period,
       date: query.date,
       from,
       to,
+      hasLbsExercises: allUnits.has('lbs'),
       ranking,
     };
   }
@@ -422,6 +533,76 @@ export class StatsService {
     }
 
     throw new BadRequestException(`Unknown period: ${period}`);
+  }
+
+  // Returns the date range for the period immediately before the given one.
+  // Used to compute volume change percentages.
+  private getPreviousDateRange(
+    period: string,
+    date: string,
+  ): { from: Date; to: Date } {
+    if (period === 'month') {
+      const match = /^(\d{4})-(\d{2})$/.exec(date)!;
+      const year = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      // Previous month
+      const prevDate = new Date(year, month - 1, 1);
+      const prevYear = prevDate.getFullYear();
+      const prevMonth = prevDate.getMonth();
+      const prevDateStr = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}`;
+      return this.parseDateRange('month', prevDateStr);
+    }
+
+    if (period === 'year') {
+      const match = /^(\d{4})$/.exec(date)!;
+      const prevYear = parseInt(match[1], 10) - 1;
+      return this.parseDateRange('year', `${prevYear}`);
+    }
+
+    // week — parse current week, subtract 7 days from monday, derive ISO week
+    const match = /^(\d{4})-W(\d{2})$/.exec(date)!;
+    const year = parseInt(match[1], 10);
+    const week = parseInt(match[2], 10);
+
+    // Compute monday of the current ISO week
+    const jan4 = new Date(year, 0, 4);
+    const dayOfWeekJan4 = jan4.getDay() === 0 ? 7 : jan4.getDay();
+    const monday = new Date(jan4);
+    monday.setDate(jan4.getDate() - (dayOfWeekJan4 - 1) + (week - 1) * 7);
+
+    // Previous week's monday
+    const prevMonday = new Date(monday);
+    prevMonday.setDate(monday.getDate() - 7);
+
+    // Derive ISO year and week number for previous monday
+    const prevThursday = new Date(prevMonday);
+    prevThursday.setDate(prevMonday.getDate() + 3);
+    const isoYear = prevThursday.getFullYear();
+    const jan4Prev = new Date(isoYear, 0, 4);
+    const dayOfWeekJan4Prev = jan4Prev.getDay() === 0 ? 7 : jan4Prev.getDay();
+    const mondayWeek1Prev = new Date(jan4Prev);
+    mondayWeek1Prev.setDate(jan4Prev.getDate() - (dayOfWeekJan4Prev - 1));
+    const isoWeek =
+      Math.round(
+        (prevMonday.getTime() - mondayWeek1Prev.getTime()) /
+          (7 * 24 * 60 * 60 * 1000),
+      ) + 1;
+
+    const prevDateStr = `${isoYear}-W${String(isoWeek).padStart(2, '0')}`;
+    return this.parseDateRange('week', prevDateStr);
+  }
+
+  // MongoDB expression that normalizes weight to kg.
+  // If exercises.weightUnit === 'lbs', divides weight by 2.20462.
+  // Old documents without weightUnit are treated as kg.
+  private get normalizedWeightExpr(): Record<string, unknown> {
+    return {
+      $cond: {
+        if: { $eq: ['$exercises.weightUnit', 'lbs'] },
+        then: { $divide: ['$exercises.sets.weight', 2.20462] },
+        else: '$exercises.sets.weight',
+      },
+    };
   }
 
   // Builds the MongoDB $group _id expression that produces the breakdown label
