@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { CacheModule } from '@nestjs/cache-manager';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
 import { envValidationSchema } from './config/env.validation';
 import { getDatabaseConfig } from './config/database.config';
 import { APP_GUARD } from '@nestjs/core';
@@ -16,6 +18,7 @@ import { StatsModule } from './modules/stats/stats.module';
 import { SocialModule } from './modules/social/social.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -49,6 +52,9 @@ import { AdminModule } from './modules/admin/admin.module';
       },
     ]),
 
+    EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
+
     AuthModule,
     UsersModule,
     ExercisesModule,
@@ -58,6 +64,7 @@ import { AdminModule } from './modules/admin/admin.module';
     SocialModule,
     FeedModule,
     AdminModule,
+    NotificationsModule,
   ],
   providers: [
     // Global JWT guard — protects all routes by default.

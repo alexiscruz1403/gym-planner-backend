@@ -4,8 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import {
+  NOTIFICATION_EVENTS,
+  UserFollowedEvent,
+} from '../notifications/events/notification.events';
 import { Follow, FollowDocument } from '../../schemas/follow.schema';
 import { User, UserDocument } from '../../schemas/user.schema';
 import { FollowQueryDto } from './dto/follow-query.dto';
@@ -20,6 +25,7 @@ export class SocialService {
     @InjectModel(Follow.name)
     private readonly followModel: Model<FollowDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async follow(followerId: string, followingId: string): Promise<void> {
@@ -53,6 +59,11 @@ export class SocialService {
         .findByIdAndUpdate(followerId, { $inc: { followingCount: 1 } })
         .exec(),
     ]);
+
+    this.eventEmitter.emit(
+      NOTIFICATION_EVENTS.USER_FOLLOWED,
+      new UserFollowedEvent(followerId, followingId),
+    );
   }
 
   async unfollow(followerId: string, followingId: string): Promise<void> {
