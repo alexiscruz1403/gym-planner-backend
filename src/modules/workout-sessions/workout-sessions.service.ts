@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   UnprocessableEntityException,
+  BadRequestException,
   Inject,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -83,6 +84,7 @@ export class WorkoutSessionsService {
       (config, index) => ({
         exerciseId: config.exerciseId,
         exerciseName: config.exerciseName,
+        bilateral: config.bilateral ?? true,
         orderIndex: index,
         supersetGroupId: config.supersetGroupId ?? undefined,
         trackingType: 'reps' as const,
@@ -91,6 +93,8 @@ export class WorkoutSessionsService {
         plannedDuration: config.duration ?? undefined,
         plannedWeight: config.weight ?? undefined,
         weightUnit: config.weightUnit ?? WeightUnit.KG,
+        plannedLeft: config.left ?? undefined,
+        plannedRight: config.right ?? undefined,
         plannedRest: config.rest,
         sets: [],
         modifiedDuringSession: false,
@@ -158,6 +162,17 @@ export class WorkoutSessionsService {
       );
     }
 
+    // Unilateral: both sides must be populated to mark the set completed.
+    if (
+      exercise.bilateral === false &&
+      dto.completed &&
+      !this.areBothSidesComplete(dto.left, dto.right, exercise.trackingType)
+    ) {
+      throw new BadRequestException(
+        `Exercise ${dto.exerciseId} is unilateral; both 'left' and 'right' must include ${exercise.trackingType === 'reps' ? 'reps' : 'duration'} to mark the set completed.`,
+      );
+    }
+
     // Eliminar cualquier set incompleto (completed === false) antes de registrar el nuevo set
     exercise.sets = exercise.sets.filter((s) => s.completed !== false);
 
@@ -166,11 +181,16 @@ export class WorkoutSessionsService {
       (s) => s.setIndex === dto.setIndex,
     );
 
+    const isUnilateral = exercise.bilateral === false;
+
     const newSet: SessionSet = {
       setIndex: dto.setIndex,
-      reps: dto.reps ?? undefined,
-      duration: dto.duration ?? undefined,
-      weight: dto.weight ?? undefined,
+      // For unilateral, singular fields stay undefined; per-side carries the data.
+      reps: isUnilateral ? undefined : (dto.reps ?? undefined),
+      duration: isUnilateral ? undefined : (dto.duration ?? undefined),
+      weight: isUnilateral ? undefined : (dto.weight ?? undefined),
+      left: isUnilateral ? (dto.left ?? undefined) : undefined,
+      right: isUnilateral ? (dto.right ?? undefined) : undefined,
       completed: dto.completed,
       loggedAt: new Date(),
     };
@@ -229,13 +249,34 @@ export class WorkoutSessionsService {
     // Resolve new exercise from the catalog
     const newExercise = await this.exerciseModel
       .findOne({ _id: new Types.ObjectId(dto.newExerciseId), isActive: true })
-      .select('_id name trackingType')
+      .select('_id name trackingType bilateral')
       .exec();
 
     if (!newExercise) {
       throw new NotFoundException(
         `Exercise ${dto.newExerciseId} not found in the catalog or is inactive`,
       );
+    }
+
+    const newBilateral = newExercise.bilateral ?? true;
+
+    // Unilateral replacement: both planned sides required, each with reps or duration.
+    if (!newBilateral) {
+      if (!dto.plannedLeft || !dto.plannedRight) {
+        throw new BadRequestException(
+          `Exercise ${dto.newExerciseId} is unilateral; both 'plannedLeft' and 'plannedRight' are required.`,
+        );
+      }
+      const trackingType =
+        (newExercise.trackingType as 'reps' | 'duration') ?? 'reps';
+      if (
+        !this.isSidePopulated(dto.plannedLeft, trackingType) ||
+        !this.isSidePopulated(dto.plannedRight, trackingType)
+      ) {
+        throw new BadRequestException(
+          `Exercise ${dto.newExerciseId} is unilateral; each planned side must include ${trackingType === 'reps' ? 'reps' : 'duration'}.`,
+        );
+      }
     }
 
     const original = session.exercises[exerciseIndex];
@@ -247,13 +288,22 @@ export class WorkoutSessionsService {
     const replacement: SessionExercise = {
       exerciseId: newExercise._id as Types.ObjectId,
       exerciseName: newExercise.name,
+      bilateral: newBilateral,
       orderIndex: original.orderIndex,
       supersetGroupId: original.supersetGroupId,
       trackingType: (newExercise.trackingType as 'reps' | 'duration') ?? 'reps',
       plannedSets: dto.plannedSets ?? original.plannedSets,
-      plannedReps: dto.plannedReps ?? original.plannedReps,
-      plannedDuration: dto.plannedDuration ?? original.plannedDuration,
-      plannedWeight: dto.plannedWeight ?? original.plannedWeight,
+      plannedReps: newBilateral
+        ? (dto.plannedReps ?? original.plannedReps)
+        : undefined,
+      plannedDuration: newBilateral
+        ? (dto.plannedDuration ?? original.plannedDuration)
+        : undefined,
+      plannedWeight: newBilateral
+        ? (dto.plannedWeight ?? original.plannedWeight)
+        : undefined,
+      plannedLeft: newBilateral ? undefined : dto.plannedLeft,
+      plannedRight: newBilateral ? undefined : dto.plannedRight,
       plannedRest: dto.plannedRest ?? original.plannedRest,
       weightUnit: dto.weightUnit ?? WeightUnit.KG,
       sets: [],
@@ -292,13 +342,24 @@ export class WorkoutSessionsService {
     }
 
     const original = session.exercises[exerciseIndex];
+    const isUnilateral = original.bilateral === false;
 
     original.plannedSets = dto.plannedSets ?? original.plannedSets;
-    original.plannedReps = dto.plannedReps ?? original.plannedReps;
-    original.plannedDuration = dto.plannedDuration ?? original.plannedDuration;
-    original.plannedWeight = dto.plannedWeight ?? original.plannedWeight;
     original.plannedRest = dto.plannedRest ?? original.plannedRest;
     original.weightUnit = dto.weightUnit ?? original.weightUnit;
+
+    if (isUnilateral) {
+      // Honor per-side updates only; singular fields stay undefined.
+      if (dto.plannedLeft !== undefined) original.plannedLeft = dto.plannedLeft;
+      if (dto.plannedRight !== undefined)
+        original.plannedRight = dto.plannedRight;
+    } else {
+      original.plannedReps = dto.plannedReps ?? original.plannedReps;
+      original.plannedDuration =
+        dto.plannedDuration ?? original.plannedDuration;
+      original.plannedWeight = dto.plannedWeight ?? original.plannedWeight;
+    }
+
     original.modifiedDuringSession = true;
 
     session.exercises[exerciseIndex] =
@@ -511,11 +572,14 @@ export class WorkoutSessionsService {
       volumeKg: number;
       exercises: {
         exerciseName: string;
+        bilateral: boolean;
         sets: {
           setIndex: number;
           reps?: number;
           durationSeconds?: number;
           weightKg?: number;
+          left?: { reps?: number; duration?: number; weight?: number } | null;
+          right?: { reps?: number; duration?: number; weight?: number } | null;
           completed: boolean;
         }[];
       }[];
@@ -546,10 +610,18 @@ export class WorkoutSessionsService {
       let volumeKg = 0;
 
       const exercises = session.exercises.map((ex) => {
+        const isUnilateral = ex.bilateral === false;
         const sets = ex.sets.map((s) => {
           if (s.completed) {
             totalSetsLogged++;
-            if (s.weight != null && s.reps != null) {
+            if (isUnilateral && s.left && s.right) {
+              if (s.left.weight != null && s.left.reps != null) {
+                volumeKg += s.left.reps * s.left.weight;
+              }
+              if (s.right.weight != null && s.right.reps != null) {
+                volumeKg += s.right.reps * s.right.weight;
+              }
+            } else if (s.weight != null && s.reps != null) {
               volumeKg += s.reps * s.weight;
             }
           }
@@ -558,10 +630,16 @@ export class WorkoutSessionsService {
             reps: s.reps,
             durationSeconds: s.duration,
             weightKg: s.weight,
+            left: s.left ?? null,
+            right: s.right ?? null,
             completed: s.completed,
           };
         });
-        return { exerciseName: ex.exerciseName, sets };
+        return {
+          exerciseName: ex.exerciseName,
+          bilateral: ex.bilateral ?? true,
+          sets,
+        };
       });
 
       return {
@@ -610,6 +688,27 @@ export class WorkoutSessionsService {
     if (session.status !== SessionStatus.IN_PROGRESS) {
       throw new UnprocessableEntityException('Session is not in progress');
     }
+  }
+
+  // True if the side carries the metric required by the exercise's trackingType.
+  // Weight stays optional (bodyweight exercises).
+  private isSidePopulated(
+    side: { reps?: number; duration?: number } | undefined,
+    trackingType: 'reps' | 'duration',
+  ): boolean {
+    if (!side) return false;
+    return trackingType === 'reps' ? side.reps != null : side.duration != null;
+  }
+
+  private areBothSidesComplete(
+    left: { reps?: number; duration?: number } | undefined,
+    right: { reps?: number; duration?: number } | undefined,
+    trackingType: 'reps' | 'duration',
+  ): boolean {
+    return (
+      this.isSidePopulated(left, trackingType) &&
+      this.isSidePopulated(right, trackingType)
+    );
   }
 
   // Resolves the most recent completed/partial session per exercise.

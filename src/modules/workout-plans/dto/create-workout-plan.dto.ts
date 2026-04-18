@@ -17,6 +17,7 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DayOfWeek } from '../../../common/enums/day-of-week.enum';
 import { WeightUnit } from '../../../common/enums/weight-unit.enum';
+import { ExerciseSideDto } from '../../../common/dto/exercise-side.dto';
 
 export class CreateExerciseConfigDto {
   @ApiProperty({ description: 'Exercise ID from the catalog' })
@@ -29,17 +30,21 @@ export class CreateExerciseConfigDto {
   sets: number;
 
   @ApiPropertyOptional({
-    description: 'Number of repetitions. Required if duration is absent.',
+    description:
+      'Number of repetitions. Required if duration is absent and the exercise is bilateral. Ignored when left/right are provided (unilateral).',
   })
-  @ValidateIf((o: CreateExerciseConfigDto) => !o.duration)
+  @ValidateIf(
+    (o: CreateExerciseConfigDto) => !o.duration && !o.left && !o.right,
+  )
   @IsInt()
   @Min(1)
   reps?: number;
 
   @ApiPropertyOptional({
-    description: 'Duration in seconds. Required if reps is absent.',
+    description:
+      'Duration in seconds. Required if reps is absent and the exercise is bilateral. Ignored when left/right are provided (unilateral).',
   })
-  @ValidateIf((o: CreateExerciseConfigDto) => !o.reps)
+  @ValidateIf((o: CreateExerciseConfigDto) => !o.reps && !o.left && !o.right)
   @IsInt()
   @Min(1)
   duration?: number;
@@ -60,6 +65,26 @@ export class CreateExerciseConfigDto {
   @IsOptional()
   @IsEnum(WeightUnit)
   weightUnit?: WeightUnit;
+
+  @ApiPropertyOptional({
+    type: ExerciseSideDto,
+    description:
+      'Per-side planned target. Required for unilateral exercises (catalog `bilateral: false`); ignored otherwise.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ExerciseSideDto)
+  left?: ExerciseSideDto;
+
+  @ApiPropertyOptional({
+    type: ExerciseSideDto,
+    description:
+      'Per-side planned target. Required for unilateral exercises (catalog `bilateral: false`); ignored otherwise.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ExerciseSideDto)
+  right?: ExerciseSideDto;
 
   @ApiProperty({ description: 'Rest between sets in seconds', minimum: 0 })
   @IsInt()

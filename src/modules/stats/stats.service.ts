@@ -50,6 +50,7 @@ export class StatsService {
   ): Promise<{
     exerciseId: string;
     exerciseName: string;
+    bilateral: boolean;
     data: {
       sessionId: string;
       sessionDate: Date;
@@ -60,6 +61,8 @@ export class StatsService {
         reps?: number;
         weight?: number;
         duration?: number;
+        left?: { reps?: number; duration?: number; weight?: number } | null;
+        right?: { reps?: number; duration?: number; weight?: number } | null;
         completed: boolean;
         loggedAt: Date;
       }[];
@@ -93,13 +96,17 @@ export class StatsService {
       this.sessionModel.countDocuments(filter).exec(),
     ]);
 
-    // Derive exerciseName from the most recent session that contains this exercise
+    // Derive exerciseName + bilateral from the most recent session that contains this exercise
     let exerciseName = '';
+    let bilateral = true;
     if (sessions.length > 0) {
       const match = sessions[0].exercises.find(
         (e) => e.exerciseId.toString() === exerciseId,
       );
-      if (match) exerciseName = match.exerciseName;
+      if (match) {
+        exerciseName = match.exerciseName;
+        bilateral = match.bilateral ?? true;
+      }
     }
 
     const data = sessions.map((session) => {
@@ -118,6 +125,8 @@ export class StatsService {
               reps: s.reps,
               weight: s.weight,
               duration: s.duration,
+              left: s.left ?? null,
+              right: s.right ?? null,
               completed: s.completed,
               loggedAt: s.loggedAt,
             }))
@@ -128,6 +137,7 @@ export class StatsService {
     return {
       exerciseId,
       exerciseName,
+      bilateral,
       data,
       meta: {
         total,
@@ -178,11 +188,12 @@ export class StatsService {
     const { from, to } = this.parseDateRange(query.period, query.date);
 
     const labelExpression = this.buildLabelExpression(query.period);
-    const normalizedWeight = this.normalizedWeightExpr;
+    const perSetVolume = this.perSetVolumeExpr();
 
-    // Pipeline: unwind exercises → unwind sets → filter completed sets with weight
-    // → group by label to produce the per-sub-period breakdown
-    // Weight is normalized to kg: lbs values are divided by 2.20462
+    // Pipeline: unwind exercises → unwind sets → filter completed sets that carry
+    // either bilateral (singular reps+weight) or unilateral (left/right) data
+    // → group by label to produce the per-sub-period breakdown.
+    // Weight is normalized to kg: lbs values are divided by 2.20462.
     const breakdownPipeline = [
       {
         $match: {
@@ -196,18 +207,26 @@ export class StatsService {
       {
         $match: {
           'exercises.sets.completed': true,
-          'exercises.sets.weight': { $ne: null },
-          'exercises.sets.reps': { $ne: null },
+          $or: [
+            {
+              'exercises.sets.weight': { $ne: null },
+              'exercises.sets.reps': { $ne: null },
+            },
+            {
+              'exercises.sets.left.weight': { $ne: null },
+              'exercises.sets.left.reps': { $ne: null },
+            },
+            {
+              'exercises.sets.right.weight': { $ne: null },
+              'exercises.sets.right.reps': { $ne: null },
+            },
+          ],
         },
       },
       {
         $group: {
           _id: labelExpression,
-          volume: {
-            $sum: {
-              $multiply: ['$exercises.sets.reps', normalizedWeight],
-            },
-          },
+          volume: { $sum: perSetVolume },
           sets: { $sum: 1 },
           // Track distinct session IDs to compute sessions-per-label
           sessionIds: { $addToSet: '$_id' },
@@ -249,18 +268,26 @@ export class StatsService {
       {
         $match: {
           'exercises.sets.completed': true,
-          'exercises.sets.weight': { $ne: null },
-          'exercises.sets.reps': { $ne: null },
+          $or: [
+            {
+              'exercises.sets.weight': { $ne: null },
+              'exercises.sets.reps': { $ne: null },
+            },
+            {
+              'exercises.sets.left.weight': { $ne: null },
+              'exercises.sets.left.reps': { $ne: null },
+            },
+            {
+              'exercises.sets.right.weight': { $ne: null },
+              'exercises.sets.right.reps': { $ne: null },
+            },
+          ],
         },
       },
       {
         $group: {
           _id: null,
-          volume: {
-            $sum: {
-              $multiply: ['$exercises.sets.reps', normalizedWeight],
-            },
-          },
+          volume: { $sum: perSetVolume },
         },
       },
     ];
@@ -369,10 +396,11 @@ export class StatsService {
       query.date,
     );
 
-    const normalizedWeight = this.normalizedWeightExpr;
+    const perSetVolume = this.perSetVolumeExpr();
 
     // Pipeline builder for muscle volume — reused for current and previous period.
     // Weight is normalized to kg: lbs values are divided by 2.20462.
+    // Unilateral sets contribute (left.reps × left.weight) + (right.reps × right.weight).
     const buildMusclePipeline = (
       rangeFrom: Date,
       rangeTo: Date,
@@ -400,18 +428,26 @@ export class StatsService {
       {
         $match: {
           'exercises.sets.completed': true,
-          'exercises.sets.weight': { $ne: null },
-          'exercises.sets.reps': { $ne: null },
+          $or: [
+            {
+              'exercises.sets.weight': { $ne: null },
+              'exercises.sets.reps': { $ne: null },
+            },
+            {
+              'exercises.sets.left.weight': { $ne: null },
+              'exercises.sets.left.reps': { $ne: null },
+            },
+            {
+              'exercises.sets.right.weight': { $ne: null },
+              'exercises.sets.right.reps': { $ne: null },
+            },
+          ],
         },
       },
       {
         $group: {
           _id: '$catalogExercise.musclesPrimary',
-          volume: {
-            $sum: {
-              $multiply: ['$exercises.sets.reps', normalizedWeight],
-            },
-          },
+          volume: { $sum: perSetVolume },
           sets: { $sum: 1 },
           units: { $addToSet: '$exercises.weightUnit' },
         },
@@ -592,16 +628,52 @@ export class StatsService {
     return this.parseDateRange('week', prevDateStr);
   }
 
-  // MongoDB expression that normalizes weight to kg.
-  // If exercises.weightUnit === 'lbs', divides weight by 2.20462.
+  // Builds a MongoDB expression that normalizes a weight field to kg.
+  // If exercises.weightUnit === 'lbs', divides the value by 2.20462.
   // Old documents without weightUnit are treated as kg.
-  private get normalizedWeightExpr(): Record<string, unknown> {
+  // The weightField path lets us reuse this for sets.weight, sets.left.weight, sets.right.weight.
+  private normalizedWeightExpr(weightField: string): Record<string, unknown> {
     return {
       $cond: {
         if: { $eq: ['$exercises.weightUnit', 'lbs'] },
-        then: { $divide: ['$exercises.sets.weight', 2.20462] },
-        else: '$exercises.sets.weight',
+        then: { $divide: [weightField, 2.20462] },
+        else: weightField,
       },
+    };
+  }
+
+  // Per-set volume expression that handles both bilateral and unilateral sets.
+  // Bilateral: reps × weight (singular fields).
+  // Unilateral: (left.reps × left.weight) + (right.reps × right.weight).
+  // Missing values contribute 0 via $ifNull, so each set populates exactly one path.
+  private perSetVolumeExpr(): Record<string, unknown> {
+    return {
+      $add: [
+        {
+          $multiply: [
+            { $ifNull: ['$exercises.sets.reps', 0] },
+            this.normalizedWeightExpr({
+              $ifNull: ['$exercises.sets.weight', 0],
+            } as unknown as string),
+          ],
+        },
+        {
+          $multiply: [
+            { $ifNull: ['$exercises.sets.left.reps', 0] },
+            this.normalizedWeightExpr({
+              $ifNull: ['$exercises.sets.left.weight', 0],
+            } as unknown as string),
+          ],
+        },
+        {
+          $multiply: [
+            { $ifNull: ['$exercises.sets.right.reps', 0] },
+            this.normalizedWeightExpr({
+              $ifNull: ['$exercises.sets.right.weight', 0],
+            } as unknown as string),
+          ],
+        },
+      ],
     };
   }
 

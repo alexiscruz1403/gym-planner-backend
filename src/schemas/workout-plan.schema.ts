@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { DayOfWeek } from '../common/enums/day-of-week.enum';
 import { WeightUnit } from '../common/enums/weight-unit.enum';
+import { ExerciseSide, ExerciseSideSchema } from './exercise-side.schema';
 
 export type WorkoutPlanDocument = HydratedDocument<WorkoutPlan>;
 
@@ -18,6 +19,10 @@ export class ExerciseConfig {
   // Snapshot of the exercise name at save time
   @Prop({ required: true })
   exerciseName: string;
+
+  // Snapshot of the catalog `bilateral` flag. False → unilateral (per-side).
+  @Prop({ required: true, default: true })
+  bilateral: boolean;
 
   @Prop({ required: true, min: 1 })
   sets: number;
@@ -39,6 +44,13 @@ export class ExerciseConfig {
     default: WeightUnit.KG,
   })
   weightUnit: WeightUnit;
+
+  // Per-side planned targets. Populated only for unilateral exercises.
+  @Prop({ type: ExerciseSideSchema, required: false })
+  left?: ExerciseSide;
+
+  @Prop({ type: ExerciseSideSchema, required: false })
+  right?: ExerciseSide;
 
   @Prop({ required: true, min: 0 })
   rest: number; // seconds between sets

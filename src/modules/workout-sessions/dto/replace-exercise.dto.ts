@@ -5,9 +5,12 @@ import {
   IsNumber,
   IsOptional,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { WeightUnit } from '../../../common/enums/weight-unit.enum';
+import { ExerciseSideDto } from '../../../common/dto/exercise-side.dto';
 
 export class ReplaceExerciseDto {
   @ApiProperty({
@@ -63,4 +66,24 @@ export class ReplaceExerciseDto {
   @IsOptional()
   @IsEnum(WeightUnit)
   weightUnit?: WeightUnit;
+
+  @ApiPropertyOptional({
+    type: ExerciseSideDto,
+    description:
+      'Per-side planned target for the replacement. Required if the new exercise is unilateral.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ExerciseSideDto)
+  plannedLeft?: ExerciseSideDto;
+
+  @ApiPropertyOptional({
+    type: ExerciseSideDto,
+    description:
+      'Per-side planned target for the replacement. Required if the new exercise is unilateral.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ExerciseSideDto)
+  plannedRight?: ExerciseSideDto;
 }
