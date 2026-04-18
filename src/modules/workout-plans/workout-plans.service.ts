@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   UnprocessableEntityException,
+  BadRequestException,
   Inject,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -65,6 +66,9 @@ export class WorkoutPlansService {
       duration: config.duration ?? null,
       weight: config.weight ?? null,
       weightUnit: config.weightUnit ?? WeightUnit.KG,
+      bilateral: config.bilateral ?? true,
+      left: config.left ?? null,
+      right: config.right ?? null,
       rest: config.rest,
       notes: config.notes ?? null,
       supersetGroupId: config.supersetGroupId ?? null,
@@ -102,21 +106,30 @@ export class WorkoutPlansService {
     };
   }
 
-  // Resolves exerciseId → exerciseName snapshot for each exercise config.
+  // Resolves exerciseId → name + bilateral snapshot for each exercise config.
   // Throws NotFoundException if any exercise doesn't exist or is inactive.
-  private async resolveExerciseNames(
-    configs: CreateExerciseConfigDto[],
-  ): Promise<{ exerciseId: Types.ObjectId; exerciseName: string }[]> {
+  private async resolveExercises(configs: CreateExerciseConfigDto[]): Promise<
+    {
+      exerciseId: Types.ObjectId;
+      exerciseName: string;
+      bilateral: boolean;
+    }[]
+  > {
     const ids = configs.map((c) => new Types.ObjectId(c.exerciseId));
     const exercises = await this.exerciseModel
       .find({ _id: { $in: ids }, isActive: true })
-      .select('_id name')
+      .select('_id name bilateral')
       .exec();
 
-    const nameMap = new Map(exercises.map((e) => [e._id.toString(), e.name]));
+    const map = new Map(
+      exercises.map((e) => [
+        e._id.toString(),
+        { name: e.name, bilateral: e.bilateral ?? true },
+      ]),
+    );
 
     for (const config of configs) {
-      if (!nameMap.has(config.exerciseId)) {
+      if (!map.has(config.exerciseId)) {
         throw new NotFoundException(
           `Exercise with id ${config.exerciseId} not found or is inactive`,
         );
@@ -125,7 +138,8 @@ export class WorkoutPlansService {
 
     return configs.map((c) => ({
       exerciseId: new Types.ObjectId(c.exerciseId),
-      exerciseName: nameMap.get(c.exerciseId)!,
+      exerciseName: map.get(c.exerciseId)!.name,
+      bilateral: map.get(c.exerciseId)!.bilateral,
     }));
   }
 
@@ -310,13 +324,17 @@ export class WorkoutPlansService {
 
     const allExerciseConfigs = daysDto.flatMap((d) => d.exercises ?? []);
 
-    // Resolve names only when there are exercises to look up
-    let nameResolutions: Map<string, string> = new Map();
+    // Resolve catalog data (name + bilateral) only when there are exercises.
+    // Position-based map handles duplicate exerciseIds across days.
+    const resolutions: Map<string, { name: string; bilateral: boolean }> =
+      new Map();
     if (allExerciseConfigs.length > 0) {
-      const resolved = await this.resolveExerciseNames(allExerciseConfigs);
-      // Build a position-based map using index to handle duplicate exerciseIds
+      const resolved = await this.resolveExercises(allExerciseConfigs);
       resolved.forEach((r, i) => {
-        nameResolutions.set(`${i}:${r.exerciseId.toString()}`, r.exerciseName);
+        resolutions.set(`${i}:${r.exerciseId.toString()}`, {
+          name: r.exerciseName,
+          bilateral: r.bilateral,
+        });
       });
     }
 
@@ -327,22 +345,51 @@ export class WorkoutPlansService {
       dayName: dayDto.dayName,
       exercises: (dayDto.exercises ?? []).map((exerciseDto) => {
         const key = `${globalIndex}:${exerciseDto.exerciseId}`;
-        const exerciseName = nameResolutions.get(key) ?? '';
+        const resolved = resolutions.get(key);
+        const exerciseName = resolved?.name ?? '';
+        const bilateral = resolved?.bilateral ?? true;
         globalIndex++;
+
+        if (!bilateral) {
+          // Unilateral: both sides required, each must carry reps OR duration.
+          if (!exerciseDto.left || !exerciseDto.right) {
+            throw new BadRequestException(
+              `Exercise ${exerciseDto.exerciseId} is unilateral; both 'left' and 'right' are required.`,
+            );
+          }
+          if (
+            !this.isPlanSidePopulated(exerciseDto.left) ||
+            !this.isPlanSidePopulated(exerciseDto.right)
+          ) {
+            throw new BadRequestException(
+              `Exercise ${exerciseDto.exerciseId} is unilateral; each side must include reps or duration.`,
+            );
+          }
+        }
 
         return {
           exerciseId: new Types.ObjectId(exerciseDto.exerciseId),
           exerciseName,
+          bilateral,
           sets: exerciseDto.sets,
-          reps: exerciseDto.reps,
-          duration: exerciseDto.duration,
-          weight: exerciseDto.weight,
+          reps: bilateral ? exerciseDto.reps : undefined,
+          duration: bilateral ? exerciseDto.duration : undefined,
+          weight: bilateral ? exerciseDto.weight : undefined,
           weightUnit: exerciseDto.weightUnit ?? WeightUnit.KG,
+          left: bilateral ? undefined : exerciseDto.left,
+          right: bilateral ? undefined : exerciseDto.right,
           rest: exerciseDto.rest,
           notes: exerciseDto.notes,
           supersetGroupId: exerciseDto.supersetGroupId,
         };
       }),
     })) as WorkoutPlanDocument['days'];
+  }
+
+  private isPlanSidePopulated(side: {
+    reps?: number;
+    duration?: number;
+  }): boolean {
+    return side.reps != null || side.duration != null;
   }
 }

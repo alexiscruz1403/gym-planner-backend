@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ExerciseSideDto } from '../../../common/dto/exercise-side.dto';
 
 export class ExerciseConfigResponseDto {
   @ApiProperty()
@@ -33,6 +34,15 @@ export class ExerciseConfigResponseDto {
 
   @ApiProperty()
   weightUnit: string;
+
+  @ApiProperty()
+  bilateral: boolean;
+
+  @ApiPropertyOptional({ type: ExerciseSideDto, nullable: true })
+  left: ExerciseSideDto | null;
+
+  @ApiPropertyOptional({ type: ExerciseSideDto, nullable: true })
+  right: ExerciseSideDto | null;
 }
 
 export class PlanDayResponseDto {

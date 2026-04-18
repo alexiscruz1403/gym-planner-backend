@@ -3,6 +3,7 @@ import { HydratedDocument, Types } from 'mongoose';
 import { DayOfWeek } from '../common/enums/day-of-week.enum';
 import { SessionStatus } from '../common/enums/session-status.enum';
 import { WeightUnit } from '../common/enums/weight-unit.enum';
+import { ExerciseSide, ExerciseSideSchema } from './exercise-side.schema';
 
 export type WorkoutSessionDocument = HydratedDocument<WorkoutSession>;
 
@@ -24,6 +25,14 @@ export class SessionSet {
 
   @Prop({ required: false, min: 0 })
   weight?: number; // kg — omitted for bodyweight exercises
+
+  // Per-side actuals. Populated only for unilateral exercises;
+  // bilateral sets continue to use the singular reps/duration/weight fields.
+  @Prop({ type: ExerciseSideSchema, required: false })
+  left?: ExerciseSide;
+
+  @Prop({ type: ExerciseSideSchema, required: false })
+  right?: ExerciseSide;
 
   @Prop({ required: true, default: false })
   completed: boolean;
@@ -47,6 +56,10 @@ export class SessionExercise {
   // Snapshot of exercise name at session start
   @Prop({ required: true })
   exerciseName: string;
+
+  // Snapshot of the catalog `bilateral` flag at session start.
+  @Prop({ required: true, default: true })
+  bilateral: boolean;
 
   @Prop({ required: true, min: 0 })
   orderIndex: number;
@@ -84,6 +97,13 @@ export class SessionExercise {
     default: WeightUnit.KG,
   })
   weightUnit: WeightUnit;
+
+  // Per-side planned targets snapshotted from the plan. Populated only when bilateral === false.
+  @Prop({ type: ExerciseSideSchema, required: false })
+  plannedLeft?: ExerciseSide;
+
+  @Prop({ type: ExerciseSideSchema, required: false })
+  plannedRight?: ExerciseSide;
 
   @Prop({ required: true, min: 0 })
   plannedRest: number; // seconds between sets

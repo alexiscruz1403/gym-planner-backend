@@ -6,8 +6,11 @@ import {
   IsNumber,
   IsOptional,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ExerciseSideDto } from '../../../common/dto/exercise-side.dto';
 
 export class LogSetDto {
   @ApiProperty({ description: 'Exercise ID as it appears in the session' })
@@ -48,6 +51,26 @@ export class LogSetDto {
   @IsNumber()
   @Min(0)
   weight?: number;
+
+  @ApiPropertyOptional({
+    type: ExerciseSideDto,
+    description:
+      'Per-side actuals. Required for unilateral exercises (snapshot `bilateral: false`); ignored otherwise. Both `left` and `right` must be present to mark the set as completed.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ExerciseSideDto)
+  left?: ExerciseSideDto;
+
+  @ApiPropertyOptional({
+    type: ExerciseSideDto,
+    description:
+      'Per-side actuals. Required for unilateral exercises (snapshot `bilateral: false`); ignored otherwise. Both `left` and `right` must be present to mark the set as completed.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ExerciseSideDto)
+  right?: ExerciseSideDto;
 
   @ApiProperty({ description: 'Whether the set was successfully completed' })
   @IsBoolean()
