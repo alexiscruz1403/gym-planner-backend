@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
   Param,
   Query,
   Body,
@@ -27,6 +28,8 @@ import {
   CurrentUser,
   type JwtPayload,
 } from '../../common/decorators/current-user.decorator';
+import { CreateSystemNotificationDto } from '../notifications/dto/create-system-notification.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @ApiTags('Admin')
 @ApiBearerAuth('access-token')
@@ -34,7 +37,10 @@ import {
 @UseGuards(RolesGuard)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   @Get('users')
   @HttpCode(HttpStatus.OK)
@@ -81,5 +87,19 @@ export class AdminController {
     @CurrentUser() requester: JwtPayload,
   ): Promise<AdminUserResponseDto> {
     return this.adminService.setUserRole(targetId, dto, requester.sub);
+  }
+
+  @Post('notifications')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary:
+      'Broadcast a system notification to every active user (admin only)',
+  })
+  @ApiResponse({ status: 201, description: 'Notifications dispatched' })
+  @ApiResponse({ status: 403, description: 'Admin role required' })
+  broadcastSystemNotification(
+    @Body() dto: CreateSystemNotificationDto,
+  ): Promise<{ delivered: number }> {
+    return this.notifications.createSystemBroadcast(dto.title, dto.body);
   }
 }

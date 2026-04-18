@@ -5,8 +5,15 @@ import {
   UnprocessableEntityException,
   ConflictException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import {
+  NOTIFICATION_EVENTS,
+  PostCommentedEvent,
+  PostCreatedEvent,
+  PostLikedEvent,
+} from '../notifications/events/notification.events';
 import { FeedPost, FeedPostDocument } from '../../schemas/feed-post.schema';
 import { Follow, FollowDocument } from '../../schemas/follow.schema';
 import {
@@ -41,6 +48,7 @@ export class FeedService {
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
     private readonly uploadService: UploadService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // ─── Create post ─────────────────────────────────────────────────────────────
@@ -83,6 +91,11 @@ export class FeedService {
       .select('_id username avatar')
       .lean()
       .exec();
+
+    this.eventEmitter.emit(
+      NOTIFICATION_EVENTS.POST_CREATED,
+      new PostCreatedEvent(userId, post._id.toString()),
+    );
 
     return this.toFeedPostResponse(post, author!, userId);
   }
@@ -177,6 +190,14 @@ export class FeedService {
     post.reactions.push({ userId: new Types.ObjectId(userId), type: 'like' });
     await post.save();
 
+    const ownerId = post.userId.toString();
+    if (ownerId !== userId) {
+      this.eventEmitter.emit(
+        NOTIFICATION_EVENTS.POST_LIKED,
+        new PostLikedEvent(userId, ownerId, post._id.toString()),
+      );
+    }
+
     return { reactionsCount: post.reactions.length };
   }
 
@@ -228,6 +249,14 @@ export class FeedService {
 
     // The pushed comment is the last one — retrieve its generated _id
     const saved = post.comments[post.comments.length - 1];
+
+    const ownerId = post.userId.toString();
+    if (ownerId !== userId) {
+      this.eventEmitter.emit(
+        NOTIFICATION_EVENTS.POST_COMMENTED,
+        new PostCommentedEvent(userId, ownerId, post._id.toString(), dto.text),
+      );
+    }
 
     return {
       _id: saved._id?.toString() ?? '',

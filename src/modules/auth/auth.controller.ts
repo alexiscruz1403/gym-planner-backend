@@ -26,6 +26,11 @@ import {
   CLEAR_COOKIE_OPTIONS,
 } from './cookie.config';
 import { AuthResponseDto } from './dto/auth-response.dto';
+import { WsTokenResponseDto } from './dto/ws-token-response.dto';
+import {
+  CurrentUser,
+  type JwtPayload,
+} from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Auth')
 // Stricter rate limit for auth endpoints: 10 requests per 60 seconds per IP
@@ -123,6 +128,18 @@ export class AuthController {
     res.clearCookie(COOKIE_NAMES.ACCESS, CLEAR_COOKIE_OPTIONS);
     res.clearCookie(COOKIE_NAMES.REFRESH, CLEAR_COOKIE_OPTIONS);
     return { message: 'Logged out successfully' };
+  }
+
+  @Get('ws-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Issue a short-lived JWT (60s) for Socket.IO handshakes when access cookies are httpOnly',
+  })
+  @ApiResponse({ status: 200, type: WsTokenResponseDto })
+  @ApiResponse({ status: 401, description: 'Not authenticated' })
+  getWsToken(@CurrentUser() user: JwtPayload): WsTokenResponseDto {
+    return this.authService.generateWsToken(user.sub, user.email, user.role);
   }
 
   @Public()

@@ -273,6 +273,26 @@ export class AuthService {
     }
   }
 
+  // Issues a short-lived JWT intended for the Socket.IO handshake.
+  // Signed with the same JWT_SECRET + payload shape as the access token,
+  // so the notifications gateway validates it with its existing verifyAsync call.
+  generateWsToken(
+    userId: string,
+    email: string,
+    role: string,
+  ): { token: string; expiresAt: Date } {
+    const ttlSeconds = 60;
+    const token = this.jwtService.sign(
+      { sub: userId, email, role },
+      {
+        secret: this.configService.get<string>('JWT_SECRET'),
+        expiresIn: ttlSeconds,
+      },
+    );
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+    return { token, expiresAt };
+  }
+
   async findOrCreate(googleProfile: {
     googleId: string;
     email: string;
