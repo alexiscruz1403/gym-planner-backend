@@ -7,13 +7,28 @@ import {
   Notification,
   NotificationDocument,
 } from '../../schemas/notification.schema';
+import {
+  NotificationPreference,
+  NotificationPreferenceDocument,
+} from '../../schemas/notification-preference.schema';
 import { User, UserDocument } from '../../schemas/user.schema';
 import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto';
 import { NotificationResponseDto } from './dto/notification-response.dto';
+import { NotificationPreferencesResponseDto } from './dto/notification-preferences-response.dto';
+import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
 import { NotificationsGateway } from './notifications.gateway';
 
 const COMMENT_PREVIEW_MAX = 200;
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+// Default preference values — used when no document exists for the user yet
+const DEFAULT_PREFS: Omit<NotificationPreference, 'userId'> = {
+  allowFollow: true,
+  allowFollowRequest: true,
+  allowPostLike: true,
+  allowPostComment: true,
+  allowNewPost: true,
+};
 
 interface ActorSnapshot {
   id: string;
@@ -28,6 +43,8 @@ export class NotificationsService {
   constructor(
     @InjectModel(Notification.name)
     private readonly notificationModel: Model<NotificationDocument>,
+    @InjectModel(NotificationPreference.name)
+    private readonly preferenceModel: Model<NotificationPreferenceDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
     @InjectModel(Follow.name)
@@ -45,6 +62,9 @@ export class NotificationsService {
 
     const recipientActive = await this.isUserActive(recipientId);
     if (!recipientActive) return;
+
+    const prefs = await this.getEffectivePrefs(recipientId);
+    if (!prefs.allowFollow) return;
 
     await this.persistAndEmit({
       recipientId,
@@ -66,6 +86,9 @@ export class NotificationsService {
 
     const recipientActive = await this.isUserActive(postOwnerId);
     if (!recipientActive) return;
+
+    const prefs = await this.getEffectivePrefs(postOwnerId);
+    if (!prefs.allowPostLike) return;
 
     await this.persistAndEmit({
       recipientId: postOwnerId,
@@ -92,6 +115,9 @@ export class NotificationsService {
 
     const recipientActive = await this.isUserActive(postOwnerId);
     if (!recipientActive) return;
+
+    const prefs = await this.getEffectivePrefs(postOwnerId);
+    if (!prefs.allowPostComment) return;
 
     await this.persistAndEmit({
       recipientId: postOwnerId,
@@ -127,8 +153,26 @@ export class NotificationsService {
 
     if (!activeFollowers.length) return;
 
-    const docs = activeFollowers.map((f) => ({
-      recipientId: f._id,
+    // Filter by each follower's allowNewPost preference
+    const activeFollowerIds = activeFollowers.map((f) => f._id.toString());
+    const prefs = await this.preferenceModel
+      .find({ userId: { $in: activeFollowers.map((f) => f._id) } })
+      .select('userId allowNewPost')
+      .lean()
+      .exec();
+
+    const prefMap = new Map(
+      prefs.map((p) => [p.userId.toString(), p.allowNewPost]),
+    );
+
+    const eligibleIds = activeFollowerIds.filter(
+      (id) => prefMap.get(id) !== false,
+    );
+
+    if (!eligibleIds.length) return;
+
+    const docs = eligibleIds.map((id) => ({
+      recipientId: new Types.ObjectId(id),
       actorId: new Types.ObjectId(actorId),
       type: NotificationType.NEW_POST,
       data: {
@@ -146,6 +190,48 @@ export class NotificationsService {
         this.toResponse(n as unknown as NotificationDocument),
       );
     }
+  }
+
+  async createForFollowRequest(
+    senderId: string,
+    recipientId: string,
+  ): Promise<void> {
+    const actor = await this.resolveActiveActor(senderId);
+    if (!actor) return;
+
+    const recipientActive = await this.isUserActive(recipientId);
+    if (!recipientActive) return;
+
+    const prefs = await this.getEffectivePrefs(recipientId);
+    if (!prefs.allowFollowRequest) return;
+
+    await this.persistAndEmit({
+      recipientId,
+      actorId: senderId,
+      type: NotificationType.FOLLOW_REQUEST,
+      data: { actorUsername: actor.username, actorAvatar: actor.avatar },
+    });
+  }
+
+  async createForFollowAccepted(
+    approverId: string,
+    requesterId: string,
+  ): Promise<void> {
+    const actor = await this.resolveActiveActor(approverId);
+    if (!actor) return;
+
+    const recipientActive = await this.isUserActive(requesterId);
+    if (!recipientActive) return;
+
+    const prefs = await this.getEffectivePrefs(requesterId);
+    if (!prefs.allowFollow) return;
+
+    await this.persistAndEmit({
+      recipientId: requesterId,
+      actorId: approverId,
+      type: NotificationType.FOLLOW_ACCEPTED,
+      data: { actorUsername: actor.username, actorAvatar: actor.avatar },
+    });
   }
 
   async createSystemBroadcast(
@@ -176,6 +262,42 @@ export class NotificationsService {
     }
 
     return { delivered: inserted.length };
+  }
+
+  // ─── Preferences ──────────────────────────────────────────────────────────
+
+  async getPreferences(
+    userId: string,
+  ): Promise<NotificationPreferencesResponseDto> {
+    const doc = await this.preferenceModel
+      .findOneAndUpdate(
+        { userId: new Types.ObjectId(userId) },
+        {
+          $setOnInsert: {
+            userId: new Types.ObjectId(userId),
+            ...DEFAULT_PREFS,
+          },
+        },
+        { upsert: true, new: true },
+      )
+      .exec();
+
+    return this.toPrefsResponse(doc!);
+  }
+
+  async updatePreferences(
+    userId: string,
+    dto: UpdateNotificationPreferencesDto,
+  ): Promise<NotificationPreferencesResponseDto> {
+    const doc = await this.preferenceModel
+      .findOneAndUpdate(
+        { userId: new Types.ObjectId(userId) },
+        { $set: dto },
+        { upsert: true, new: true },
+      )
+      .exec();
+
+    return this.toPrefsResponse(doc!);
   }
 
   // ─── Read API ─────────────────────────────────────────────────────────────
@@ -303,6 +425,29 @@ export class NotificationsService {
       .lean()
       .exec();
     return !!user && user.isActive;
+  }
+
+  private async getEffectivePrefs(
+    userId: string,
+  ): Promise<Omit<NotificationPreference, 'userId'>> {
+    const doc = await this.preferenceModel
+      .findOne({ userId: new Types.ObjectId(userId) })
+      .lean()
+      .exec();
+    return doc ?? DEFAULT_PREFS;
+  }
+
+  private toPrefsResponse(
+    doc: NotificationPreferenceDocument,
+  ): NotificationPreferencesResponseDto {
+    return {
+      userId: doc.userId.toString(),
+      allowFollow: doc.allowFollow,
+      allowFollowRequest: doc.allowFollowRequest,
+      allowPostLike: doc.allowPostLike,
+      allowPostComment: doc.allowPostComment,
+      allowNewPost: doc.allowNewPost,
+    };
   }
 
   private toResponse(doc: NotificationDocument): NotificationResponseDto {

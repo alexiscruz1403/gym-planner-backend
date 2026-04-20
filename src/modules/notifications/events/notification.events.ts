@@ -3,6 +3,8 @@ export const NOTIFICATION_EVENTS = {
   POST_LIKED: 'post.liked',
   POST_COMMENTED: 'post.commented',
   POST_CREATED: 'post.created',
+  FOLLOW_REQUEST_SENT: 'follow_request.sent',
+  FOLLOW_REQUEST_ACCEPTED: 'follow_request.accepted',
 } as const;
 
 export class UserFollowedEvent {
@@ -33,5 +35,19 @@ export class PostCreatedEvent {
   constructor(
     public readonly actorId: string,
     public readonly postId: string,
+  ) {}
+}
+
+export class FollowRequestSentEvent {
+  constructor(
+    public readonly senderId: string,
+    public readonly recipientId: string,
+  ) {}
+}
+
+export class FollowRequestAcceptedEvent {
+  constructor(
+    public readonly senderId: string,
+    public readonly recipientId: string,
   ) {}
 }

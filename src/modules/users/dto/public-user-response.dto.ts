@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PublicUserResponseDto {
   @ApiProperty({ example: '661f1b2c3d4e5f6a7b8c9d0e' })
@@ -7,23 +7,40 @@ export class PublicUserResponseDto {
   @ApiProperty({ example: 'miusuario' })
   username: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example:
       'https://res.cloudinary.com/gym-planner/image/upload/avatars/abc123.jpg',
-    required: false,
     nullable: true,
   })
   avatar?: string;
 
-  @ApiProperty({ example: 12 })
-  followersCount: number;
+  @ApiProperty({ description: 'True if the profile is set to private' })
+  isPrivate: boolean;
 
-  @ApiProperty({ example: 7 })
-  followingCount: number;
+  @ApiPropertyOptional({
+    description:
+      'Follower count — omitted when the profile is private and the requester is not an approved follower',
+    nullable: true,
+  })
+  followersCount?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Following count — omitted when the profile is private and the requester is not an approved follower',
+    nullable: true,
+  })
+  followingCount?: number;
 
   @ApiProperty({
     example: false,
     description: 'True if the requesting user follows this profile',
   })
   isFollowing: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'True if the requesting user has a pending follow request to this profile',
+  })
+  isRequestPending?: boolean;
 }

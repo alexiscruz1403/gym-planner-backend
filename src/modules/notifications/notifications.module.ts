@@ -6,6 +6,10 @@ import {
   Notification,
   NotificationSchema,
 } from '../../schemas/notification.schema';
+import {
+  NotificationPreference,
+  NotificationPreferenceSchema,
+} from '../../schemas/notification-preference.schema';
 import { User, UserSchema } from '../../schemas/user.schema';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsCronService } from './notifications.cron';
@@ -17,6 +21,10 @@ import { NotificationsService } from './notifications.service';
   imports: [
     MongooseModule.forFeature([
       { name: Notification.name, schema: NotificationSchema },
+      {
+        name: NotificationPreference.name,
+        schema: NotificationPreferenceSchema,
+      },
       { name: User.name, schema: UserSchema },
       { name: Follow.name, schema: FollowSchema },
     ]),

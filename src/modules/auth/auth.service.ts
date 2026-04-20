@@ -45,6 +45,7 @@ export class AuthService {
       followingCount: user.followingCount,
       role: user.role,
       isActive: user.isActive,
+      isPrivate: user.isPrivate,
       createdAt: user.createdAt,
     };
   }
