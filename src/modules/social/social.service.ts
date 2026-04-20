@@ -10,25 +10,40 @@ import { Model, Types } from 'mongoose';
 import {
   NOTIFICATION_EVENTS,
   UserFollowedEvent,
+  FollowRequestSentEvent,
+  FollowRequestAcceptedEvent,
 } from '../notifications/events/notification.events';
 import { Follow, FollowDocument } from '../../schemas/follow.schema';
+import {
+  FollowRequest,
+  FollowRequestDocument,
+} from '../../schemas/follow-request.schema';
 import { User, UserDocument } from '../../schemas/user.schema';
 import { FollowQueryDto } from './dto/follow-query.dto';
 import {
   FollowListResponseDto,
   FollowUserResponseDto,
 } from './dto/follow-user-response.dto';
+import {
+  FollowRequestListResponseDto,
+  FollowRequestResponseDto,
+} from './dto/follow-request-response.dto';
 
 @Injectable()
 export class SocialService {
   constructor(
     @InjectModel(Follow.name)
     private readonly followModel: Model<FollowDocument>,
+    @InjectModel(FollowRequest.name)
+    private readonly followRequestModel: Model<FollowRequestDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async follow(followerId: string, followingId: string): Promise<void> {
+  async follow(
+    followerId: string,
+    followingId: string,
+  ): Promise<{ pending: boolean }> {
     if (followerId === followingId) {
       throw new BadRequestException('You cannot follow yourself.');
     }
@@ -46,6 +61,33 @@ export class SocialService {
     if (existing)
       throw new ConflictException('You are already following this user.');
 
+    // Private profile — queue a follow request instead of an immediate follow
+    if (target.isPrivate) {
+      const pendingRequest = await this.followRequestModel
+        .findOne({
+          senderId: new Types.ObjectId(followerId),
+          recipientId: new Types.ObjectId(followingId),
+        })
+        .exec();
+
+      if (pendingRequest) {
+        throw new ConflictException('Follow request already pending.');
+      }
+
+      await this.followRequestModel.create({
+        senderId: new Types.ObjectId(followerId),
+        recipientId: new Types.ObjectId(followingId),
+      });
+
+      this.eventEmitter.emit(
+        NOTIFICATION_EVENTS.FOLLOW_REQUEST_SENT,
+        new FollowRequestSentEvent(followerId, followingId),
+      );
+
+      return { pending: true };
+    }
+
+    // Public profile — immediate follow
     await this.followModel.create({
       followerId: new Types.ObjectId(followerId),
       followingId: new Types.ObjectId(followingId),
@@ -64,6 +106,8 @@ export class SocialService {
       NOTIFICATION_EVENTS.USER_FOLLOWED,
       new UserFollowedEvent(followerId, followingId),
     );
+
+    return { pending: false };
   }
 
   async unfollow(followerId: string, followingId: string): Promise<void> {
@@ -85,6 +129,147 @@ export class SocialService {
         .findByIdAndUpdate(followerId, { $inc: { followingCount: -1 } })
         .exec(),
     ]);
+  }
+
+  async approveFollowRequest(
+    approverId: string,
+    senderId: string,
+  ): Promise<void> {
+    const request = await this.followRequestModel
+      .findOne({
+        senderId: new Types.ObjectId(senderId),
+        recipientId: new Types.ObjectId(approverId),
+      })
+      .exec();
+
+    if (!request) throw new NotFoundException('Follow request not found.');
+
+    // Check if the sender is still an active user before creating the follow
+    const senderUser = await this.userModel
+      .findById(senderId)
+      .select('isActive')
+      .lean()
+      .exec();
+
+    await this.followRequestModel.findByIdAndDelete(request._id).exec();
+
+    if (!senderUser || !senderUser.isActive) return;
+
+    // Prevent duplicate Follow doc in case of a race condition
+    const existing = await this.followModel
+      .findOne({
+        followerId: new Types.ObjectId(senderId),
+        followingId: new Types.ObjectId(approverId),
+      })
+      .exec();
+
+    if (!existing) {
+      await this.followModel.create({
+        followerId: new Types.ObjectId(senderId),
+        followingId: new Types.ObjectId(approverId),
+      });
+
+      await Promise.all([
+        this.userModel
+          .findByIdAndUpdate(approverId, { $inc: { followersCount: 1 } })
+          .exec(),
+        this.userModel
+          .findByIdAndUpdate(senderId, { $inc: { followingCount: 1 } })
+          .exec(),
+      ]);
+    }
+
+    // Notify the approver of the new follower
+    this.eventEmitter.emit(
+      NOTIFICATION_EVENTS.USER_FOLLOWED,
+      new UserFollowedEvent(senderId, approverId),
+    );
+
+    // Notify the requester that their request was accepted
+    this.eventEmitter.emit(
+      NOTIFICATION_EVENTS.FOLLOW_REQUEST_ACCEPTED,
+      new FollowRequestAcceptedEvent(approverId, senderId),
+    );
+  }
+
+  async rejectFollowRequest(
+    approverId: string,
+    senderId: string,
+  ): Promise<void> {
+    const result = await this.followRequestModel
+      .findOneAndDelete({
+        senderId: new Types.ObjectId(senderId),
+        recipientId: new Types.ObjectId(approverId),
+      })
+      .exec();
+
+    if (!result) throw new NotFoundException('Follow request not found.');
+  }
+
+  async cancelFollowRequest(
+    senderId: string,
+    recipientId: string,
+  ): Promise<void> {
+    const result = await this.followRequestModel
+      .findOneAndDelete({
+        senderId: new Types.ObjectId(senderId),
+        recipientId: new Types.ObjectId(recipientId),
+      })
+      .exec();
+
+    if (!result) throw new NotFoundException('Follow request not found.');
+  }
+
+  async getPendingRequests(
+    userId: string,
+    query: FollowQueryDto,
+  ): Promise<FollowRequestListResponseDto> {
+    const { page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const recipientId = new Types.ObjectId(userId);
+
+    const [requests, total] = await Promise.all([
+      this.followRequestModel
+        .find({ recipientId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate<{ senderId: UserDocument }>('senderId', '_id username avatar')
+        .exec(),
+      this.followRequestModel.countDocuments({ recipientId }).exec(),
+    ]);
+
+    const data: FollowRequestResponseDto[] = requests.map((r) => {
+      const sender = r.senderId as unknown as UserDocument;
+      return {
+        _id: r._id.toString(),
+        senderId: sender._id.toString(),
+        username: sender.username,
+        avatar: sender.avatar,
+        createdAt: r.createdAt,
+      };
+    });
+
+    return {
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async isFollowRequestPending(
+    senderId: string,
+    recipientId: string,
+  ): Promise<boolean> {
+    const doc = await this.followRequestModel
+      .findOne({
+        senderId: new Types.ObjectId(senderId),
+        recipientId: new Types.ObjectId(recipientId),
+      })
+      .select('_id')
+      .lean()
+      .exec();
+    return !!doc;
   }
 
   async getFollowers(
@@ -199,7 +384,6 @@ export class SocialService {
   // ─── Private helpers ──────────────────────────────────────────────────────────
 
   // Returns a Set of userIds from `candidates` that the requester is following.
-  // Used to compute the isFollowing flag in list responses.
   private async getFollowingIdSet(
     requesterId: string,
     candidates: string[],

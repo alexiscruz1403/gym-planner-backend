@@ -36,6 +36,9 @@ export class User {
   @Prop({ default: true })
   isActive: boolean;
 
+  @Prop({ default: false })
+  isPrivate: boolean;
+
   @Prop({ default: 0 })
   followersCount: number;
 

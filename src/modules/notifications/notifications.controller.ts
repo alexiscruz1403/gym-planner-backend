@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -20,6 +21,8 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto';
 import { NotificationResponseDto } from './dto/notification-response.dto';
+import { NotificationPreferencesResponseDto } from './dto/notification-preferences-response.dto';
+import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
 import { NotificationsService } from './notifications.service';
 
 @ApiTags('Notifications')
@@ -55,6 +58,31 @@ export class NotificationsController {
   ): Promise<{ count: number }> {
     const count = await this.notifications.getUnreadCount(user.sub);
     return { count };
+  }
+
+  @Get('preferences')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get notification preferences for the current user',
+  })
+  @ApiResponse({ status: 200, type: NotificationPreferencesResponseDto })
+  getPreferences(
+    @CurrentUser() user: JwtPayload,
+  ): Promise<NotificationPreferencesResponseDto> {
+    return this.notifications.getPreferences(user.sub);
+  }
+
+  @Patch('preferences')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update notification preferences for the current user',
+  })
+  @ApiResponse({ status: 200, type: NotificationPreferencesResponseDto })
+  updatePreferences(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: UpdateNotificationPreferencesDto,
+  ): Promise<NotificationPreferencesResponseDto> {
+    return this.notifications.updatePreferences(user.sub, dto);
   }
 
   @Patch('read-all')

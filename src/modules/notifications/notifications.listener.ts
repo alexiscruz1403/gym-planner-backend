@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import {
   NOTIFICATION_EVENTS,
+  FollowRequestAcceptedEvent,
+  FollowRequestSentEvent,
   PostCommentedEvent,
   PostCreatedEvent,
   PostLikedEvent,
@@ -60,6 +62,33 @@ export class NotificationsListener {
       await this.notifications.createForNewPost(event.actorId, event.postId);
     } catch (err) {
       this.logger.error('Failed to handle POST_CREATED', err as Error);
+    }
+  }
+
+  @OnEvent(NOTIFICATION_EVENTS.FOLLOW_REQUEST_SENT, { async: true })
+  async handleFollowRequest(event: FollowRequestSentEvent): Promise<void> {
+    try {
+      await this.notifications.createForFollowRequest(
+        event.senderId,
+        event.recipientId,
+      );
+    } catch (err) {
+      this.logger.error('Failed to handle FOLLOW_REQUEST_SENT', err as Error);
+    }
+  }
+
+  @OnEvent(NOTIFICATION_EVENTS.FOLLOW_REQUEST_ACCEPTED, { async: true })
+  async handleFollowAccepted(event: FollowRequestAcceptedEvent): Promise<void> {
+    try {
+      await this.notifications.createForFollowAccepted(
+        event.senderId,
+        event.recipientId,
+      );
+    } catch (err) {
+      this.logger.error(
+        'Failed to handle FOLLOW_REQUEST_ACCEPTED',
+        err as Error,
+      );
     }
   }
 }

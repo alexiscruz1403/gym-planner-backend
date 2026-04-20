@@ -41,13 +41,32 @@ export class UsersService {
       targetId,
     );
 
+    // Private profile — only show username + avatar to non-approved viewers
+    if (user.isPrivate && !isFollowing && requesterId !== targetId) {
+      const isRequestPending = await this.socialService.isFollowRequestPending(
+        requesterId,
+        targetId,
+      );
+
+      return {
+        _id: user._id.toString(),
+        username: user.username,
+        avatar: user.avatar,
+        isPrivate: true,
+        isFollowing: false,
+        isRequestPending,
+      };
+    }
+
     return {
       _id: user._id.toString(),
       username: user.username,
       avatar: user.avatar,
+      isPrivate: user.isPrivate,
       followersCount: user.followersCount,
       followingCount: user.followingCount,
       isFollowing,
+      isRequestPending: false,
     };
   }
 
@@ -77,9 +96,11 @@ export class UsersService {
       _id: u._id.toString(),
       username: u.username,
       avatar: u.avatar,
-      followersCount: u.followersCount,
-      followingCount: u.followingCount,
+      isPrivate: u.isPrivate,
+      followersCount: u.isPrivate ? undefined : u.followersCount,
+      followingCount: u.isPrivate ? undefined : u.followingCount,
       isFollowing: false, // bulk search does not compute follow state per entry
+      isRequestPending: false,
     }));
 
     return {
