@@ -6,6 +6,7 @@ import {
   BadRequestException,
   Inject,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -30,6 +31,10 @@ import { FinishSessionDto } from './dto/finish-session.dto';
 import { HistoryQueryDto } from './dto/history-query.dto';
 import { PublicSessionHistoryQueryDto } from './dto/public-session-history-query.dto';
 import { ModifyExerciseDto } from './dto/modify-exercise.dto';
+import {
+  RANK_EVENTS,
+  SessionCompletedForRanksEvent,
+} from '../ranks/events/rank.events';
 
 const SESSIONS_CACHE_TTL = 120; // 2 minutes in seconds
 
@@ -43,6 +48,7 @@ export class WorkoutSessionsService {
     @InjectModel(Exercise.name)
     private readonly exerciseModel: Model<ExerciseDocument>,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // ─── Start Session ────────────────────────────────────────────────────────────
@@ -404,6 +410,21 @@ export class WorkoutSessionsService {
     // Flush entire cache: finishing a session invalidates session history,
     // stats (volume, muscles, exercise history) and plans simultaneously.
     await this.cacheManager.clear();
+
+    this.eventEmitter.emit(
+      RANK_EVENTS.SESSION_COMPLETED,
+      new SessionCompletedForRanksEvent(
+        userId,
+        session.exercises.map((e) => ({
+          exerciseId: e.exerciseId.toString(),
+          exerciseName: e.exerciseName,
+          trackingType: e.trackingType,
+          bilateral: e.bilateral ?? true,
+          weightUnit: e.weightUnit ?? WeightUnit.KG,
+          sets: e.sets,
+        })),
+      ),
+    );
 
     return session;
   }
