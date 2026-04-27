@@ -32,6 +32,31 @@ export class StatsController {
     return this.statsService.getExerciseHistory(user.sub, exerciseId, query);
   }
 
+  @Get('exercises/:exerciseId/volume')
+  @ApiOperation({
+    summary:
+      'Get volume stats for a specific exercise scoped to a given period',
+  })
+  @ApiQuery({ name: 'period', enum: ['week', 'month', 'year'] })
+  @ApiQuery({
+    name: 'date',
+    description:
+      'Reference date. Format: YYYY-Www (week), YYYY-MM (month), YYYY (year)',
+    example: '2026-03',
+  })
+  @ApiResponse({ status: 200, description: 'Exercise volume stats returned' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid exerciseId or date format',
+  })
+  getExerciseVolume(
+    @Param('exerciseId') exerciseId: string,
+    @Query() query: StatsQueryDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.statsService.getExerciseVolume(user.sub, exerciseId, query);
+  }
+
   @Get('volume')
   @ApiOperation({
     summary:
