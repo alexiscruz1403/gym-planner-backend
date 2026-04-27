@@ -15,7 +15,10 @@ import { ExerciseQueryDto } from './dto/exercise-query.dto';
 import {
   ExerciseResponseDto,
   ExerciseListResponseDto,
+  ExerciseWeightGuideDto,
 } from './dto/exercise-response.dto';
+import { WeightInstruction } from '../../common/enums/weight-instruction.enum';
+import { LoadType } from 'src/common/enums';
 
 @Injectable()
 export class ExercisesService {
@@ -26,6 +29,49 @@ export class ExercisesService {
   ) {}
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  private buildWeightGuide(
+    loadType: LoadType,
+    bilateral: boolean,
+  ): ExerciseWeightGuideDto {
+    if (loadType === LoadType.BARBELL)
+      return {
+        instruction: WeightInstruction.BARBELL_SUM,
+        note: 'Log total bar weight: bar + plates on both sides',
+      };
+    if (loadType === LoadType.MACHINE)
+      return bilateral
+        ? {
+            instruction: WeightInstruction.MACHINE_DISPLAY,
+            note: 'Log what the machine weight stack or display shows',
+          }
+        : {
+            instruction: WeightInstruction.MACHINE_SUM_SIDES,
+            note: 'Log total: sum both sides of the machine',
+          };
+    if (loadType === LoadType.BODYWEIGHT)
+      return {
+        instruction: WeightInstruction.BODYWEIGHT,
+        note: 'Log your current body weight',
+      };
+    if (loadType === LoadType.RESISTANCE_BAND)
+      return { instruction: WeightInstruction.NO_WEIGHT, note: null };
+    if (loadType === LoadType.CABLE)
+      return bilateral
+        ? {
+            instruction: WeightInstruction.CABLE_DISPLAY,
+            note: 'Log what the cable pulley weight display shows',
+          }
+        : {
+            instruction: WeightInstruction.CABLE_SUM_SIDES,
+            note: 'Log total: sum both cable sides',
+          };
+    // DUMBBELL and KETTLEBELL — bilateral flag is irrelevant
+    return {
+      instruction: WeightInstruction.EACH_SIDE_WEIGHT,
+      note: 'Log the weight of each individual dumbbell/kettlebell',
+    };
+  }
 
   private toResponseDto(exercise: ExerciseDocument): ExerciseResponseDto {
     return {
@@ -39,6 +85,7 @@ export class ExercisesService {
       gifUrl: exercise.gifUrl ?? null,
       videoUrl: exercise.videoUrl ?? null,
       createdAt: exercise.createdAt,
+      weightGuide: this.buildWeightGuide(exercise.loadType, exercise.bilateral),
     };
   }
 

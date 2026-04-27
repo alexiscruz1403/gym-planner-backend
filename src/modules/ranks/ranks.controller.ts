@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -9,6 +9,7 @@ import {
 import { RanksService } from './ranks.service';
 import { MuscleRankQueryDto } from './dto/muscle-rank-query.dto';
 import { LeaderboardQueryDto } from './dto/leaderboard-query.dto';
+import { ExerciseRankResponseDto } from './dto/exercise-rank-response.dto';
 import { CurrentUser, type JwtPayload } from '../../common/decorators';
 
 @ApiTags('Ranks')
@@ -34,6 +35,19 @@ export class RanksController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.ranksService.getMuscleRanks(user.sub, query.muscle);
+  }
+
+  @Get('exercises/:exerciseId')
+  @ApiOperation({
+    summary: "Get the current user's rank for a specific exercise",
+  })
+  @ApiResponse({ status: 200, type: ExerciseRankResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid exerciseId format' })
+  getExerciseRank(
+    @Param('exerciseId') exerciseId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.ranksService.getExerciseRank(user.sub, exerciseId);
   }
 
   @Get('leaderboard')

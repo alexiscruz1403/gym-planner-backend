@@ -1,6 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MuscleGroup } from '../../../common/enums/muscle-group.enum';
 import { LoadType } from '../../../common/enums/load-type.enum';
+import { WeightInstruction } from '../../../common/enums/weight-instruction.enum';
+
+export class ExerciseWeightGuideDto {
+  @ApiProperty({ enum: WeightInstruction })
+  instruction: WeightInstruction;
+
+  @ApiPropertyOptional({ nullable: true })
+  note: string | null;
+}
 
 export class ExerciseResponseDto {
   @ApiProperty()
@@ -32,6 +41,9 @@ export class ExerciseResponseDto {
 
   @ApiPropertyOptional()
   createdAt?: Date;
+
+  @ApiProperty({ type: ExerciseWeightGuideDto })
+  weightGuide: ExerciseWeightGuideDto;
 }
 
 export class ExerciseListResponseDto {

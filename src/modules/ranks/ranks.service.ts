@@ -1,4 +1,9 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Inject,
+  Logger,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -35,6 +40,7 @@ import {
   LeaderboardResponseDto,
   LeaderboardUserEntryDto,
 } from './dto/leaderboard-response.dto';
+import { ExerciseRankResponseDto } from './dto/exercise-rank-response.dto';
 
 const LBS_TO_KG = 2.20462;
 const RANKS_CACHE_TTL = 300; // 5 minutes
@@ -159,6 +165,10 @@ export class RanksService {
             { upsert: true, new: true },
           )
           .exec();
+
+        await this.cacheManager.del(
+          `ranks:exercise:${userId}:${sessionExercise.exerciseId}`,
+        );
 
         for (const muscle of catalog.musclesPrimary as MuscleGroup[]) {
           musclesUpdated.add(muscle);
@@ -352,6 +362,54 @@ export class RanksService {
         exercises,
       };
     });
+  }
+
+  // ─── Get Exercise Rank ────────────────────────────────────────────────────────
+
+  async getExerciseRank(
+    userId: string,
+    exerciseId: string,
+  ): Promise<ExerciseRankResponseDto> {
+    const cacheKey = `ranks:exercise:${userId}:${exerciseId}`;
+    const cached =
+      await this.cacheManager.get<ExerciseRankResponseDto>(cacheKey);
+    if (cached) return cached;
+
+    let exerciseObjectId: Types.ObjectId;
+    try {
+      exerciseObjectId = new Types.ObjectId(exerciseId);
+    } catch {
+      throw new BadRequestException('Invalid exerciseId format');
+    }
+
+    const doc = await this.exerciseRankModel
+      .findOne({
+        userId: new Types.ObjectId(userId),
+        exerciseId: exerciseObjectId,
+      })
+      .lean()
+      .exec();
+
+    const result: ExerciseRankResponseDto = doc
+      ? {
+          exerciseId,
+          exerciseName: doc.exerciseName,
+          rank: doc.rank,
+          rankName: RANK_NAMES[doc.rank as RankLevel],
+          bestValue: doc.bestValue,
+          updatedAt: doc.updatedAt,
+        }
+      : {
+          exerciseId,
+          exerciseName: null,
+          rank: null,
+          rankName: null,
+          bestValue: null,
+          updatedAt: null,
+        };
+
+    await this.cacheManager.set(cacheKey, result, RANKS_CACHE_TTL);
+    return result;
   }
 
   // ─── Leaderboard ─────────────────────────────────────────────────────────────

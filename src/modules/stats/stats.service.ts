@@ -507,6 +507,220 @@ export class StatsService {
     };
   }
 
+  // ─── Exercise Volume ──────────────────────────────────────────────────────────
+
+  async getExerciseVolume(
+    userId: string,
+    exerciseId: string,
+    query: StatsQueryDto,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any> {
+    const key = `stats:exercise-volume:${userId}:${exerciseId}:${query.period}:${query.date}`;
+    const cached = await this.cacheManager.get(key);
+    if (cached) return cached;
+
+    const result = await this._getExerciseVolume(userId, exerciseId, query);
+    await this.cacheManager.set(key, result, STATS_CACHE_TTL);
+    return result;
+  }
+
+  private async _getExerciseVolume(
+    userId: string,
+    exerciseId: string,
+    query: StatsQueryDto,
+  ): Promise<{
+    exerciseId: string;
+    period: string;
+    date: string;
+    from: Date;
+    to: Date;
+    totalVolume: number;
+    totalSets: number;
+    totalSessions: number;
+    hasLbsExercises: boolean;
+    breakdown: {
+      label: string;
+      volume: number;
+      sets: number;
+      sessions: number;
+    }[];
+    previousTotalVolume: number;
+    changePercent: number | null;
+  }> {
+    let exerciseObjectId: Types.ObjectId;
+    try {
+      exerciseObjectId = new Types.ObjectId(exerciseId);
+    } catch {
+      throw new BadRequestException('Invalid exerciseId format');
+    }
+
+    const { from, to } = this.parseDateRange(query.period, query.date);
+    const labelExpression = this.buildLabelExpression(query.period);
+    const perSetVolume = this.perSetVolumeExpr();
+
+    const breakdownPipeline = [
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          status: { $in: [SessionStatus.COMPLETED, SessionStatus.PARTIAL] },
+          startedAt: { $gte: from, $lte: to },
+          'exercises.exerciseId': exerciseObjectId,
+        },
+      },
+      { $unwind: '$exercises' },
+      { $match: { 'exercises.exerciseId': exerciseObjectId } },
+      { $unwind: '$exercises.sets' },
+      {
+        $match: {
+          'exercises.sets.completed': true,
+          $or: [
+            {
+              'exercises.sets.weight': { $ne: null },
+              'exercises.sets.reps': { $ne: null },
+            },
+            {
+              'exercises.sets.left.weight': { $ne: null },
+              'exercises.sets.left.reps': { $ne: null },
+            },
+            {
+              'exercises.sets.right.weight': { $ne: null },
+              'exercises.sets.right.reps': { $ne: null },
+            },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: labelExpression,
+          volume: { $sum: perSetVolume },
+          sets: { $sum: 1 },
+          sessionIds: { $addToSet: '$_id' },
+          units: { $addToSet: '$exercises.weightUnit' },
+        },
+      },
+      { $sort: { _id: 1 as const } },
+    ];
+
+    const sessionsPipeline = [
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          status: { $in: [SessionStatus.COMPLETED, SessionStatus.PARTIAL] },
+          startedAt: { $gte: from, $lte: to },
+          'exercises.exerciseId': exerciseObjectId,
+        },
+      },
+      { $count: 'total' },
+    ];
+
+    const { from: prevFrom, to: prevTo } = this.getPreviousDateRange(
+      query.period,
+      query.date,
+    );
+
+    const prevVolumePipeline = [
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          status: { $in: [SessionStatus.COMPLETED, SessionStatus.PARTIAL] },
+          startedAt: { $gte: prevFrom, $lte: prevTo },
+          'exercises.exerciseId': exerciseObjectId,
+        },
+      },
+      { $unwind: '$exercises' },
+      { $match: { 'exercises.exerciseId': exerciseObjectId } },
+      { $unwind: '$exercises.sets' },
+      {
+        $match: {
+          'exercises.sets.completed': true,
+          $or: [
+            {
+              'exercises.sets.weight': { $ne: null },
+              'exercises.sets.reps': { $ne: null },
+            },
+            {
+              'exercises.sets.left.weight': { $ne: null },
+              'exercises.sets.left.reps': { $ne: null },
+            },
+            {
+              'exercises.sets.right.weight': { $ne: null },
+              'exercises.sets.right.reps': { $ne: null },
+            },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          volume: { $sum: perSetVolume },
+        },
+      },
+    ];
+
+    const [breakdownRaw, sessionsRaw, prevVolumeRaw] = await Promise.all([
+      this.sessionModel.aggregate(breakdownPipeline).exec(),
+      this.sessionModel.aggregate(sessionsPipeline).exec(),
+      this.sessionModel.aggregate(prevVolumePipeline).exec(),
+    ]);
+
+    const totalSessions: number =
+      sessionsRaw.length > 0 ? (sessionsRaw[0].total as number) : 0;
+
+    const allUnits = new Set<string>();
+
+    const breakdown = (
+      breakdownRaw as {
+        _id: string;
+        volume: number;
+        sets: number;
+        sessionIds: unknown[];
+        units: string[];
+      }[]
+    ).map((item) => {
+      item.units.forEach((u) => allUnits.add(u));
+      return {
+        label: item._id,
+        volume: Math.round(item.volume * 100) / 100,
+        sets: item.sets,
+        sessions: item.sessionIds.length,
+      };
+    });
+
+    const totalVolume =
+      Math.round(breakdown.reduce((acc, b) => acc + b.volume, 0) * 100) / 100;
+    const totalSets = breakdown.reduce((acc, b) => acc + b.sets, 0);
+
+    const previousTotalVolume =
+      prevVolumeRaw.length > 0
+        ? Math.round((prevVolumeRaw[0] as { volume: number }).volume * 100) /
+          100
+        : 0;
+
+    const changePercent =
+      previousTotalVolume === 0
+        ? null
+        : Math.round(
+            ((totalVolume - previousTotalVolume) / previousTotalVolume) *
+              100 *
+              100,
+          ) / 100;
+
+    return {
+      exerciseId,
+      period: query.period,
+      date: query.date,
+      from,
+      to,
+      totalVolume,
+      totalSets,
+      totalSessions,
+      hasLbsExercises: allUnits.has('lbs'),
+      breakdown,
+      previousTotalVolume,
+      changePercent,
+    };
+  }
+
   // ─── Date Range Helper ────────────────────────────────────────────────────────
 
   private parseDateRange(
