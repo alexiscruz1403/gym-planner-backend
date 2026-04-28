@@ -1,4 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { MembershipTier } from '../../../common/enums/membership-tier.enum';
+import { MembershipStatus } from '../../../common/enums/membership-status.enum';
 
 export class UserResponseDto {
   @ApiProperty({ example: '661f1b2c3d4e5f6a7b8c9d0e' })
@@ -32,6 +34,18 @@ export class UserResponseDto {
 
   @ApiProperty({ example: true })
   isPrivate: boolean;
+
+  @ApiProperty({ enum: MembershipTier, example: MembershipTier.FREE })
+  membershipTier: MembershipTier;
+
+  @ApiProperty({ enum: MembershipStatus, example: MembershipStatus.ACTIVE })
+  membershipStatus: MembershipStatus;
+
+  @ApiProperty({ required: false, nullable: true, example: null })
+  membershipExpiresAt?: Date;
+
+  @ApiProperty({ example: true })
+  autoRenew: boolean;
 
   @ApiProperty({ example: '2024-01-01T00:00:00.000Z' })
   createdAt: Date;

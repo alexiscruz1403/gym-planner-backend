@@ -6,4 +6,6 @@ export enum NotificationType {
   POST_COMMENT = 'post_comment',
   NEW_POST = 'new_post',
   SYSTEM = 'system',
+  MEMBERSHIP_RENEWED = 'membership_renewed',
+  MEMBERSHIP_RENEWAL_FAILED = 'membership_renewal_failed',
 }

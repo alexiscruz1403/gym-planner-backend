@@ -4,6 +4,8 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
+  membershipTier?: string;
+  membershipStatus?: string;
 }
 
 // Usage in controllers:

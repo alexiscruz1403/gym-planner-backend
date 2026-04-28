@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comprobante de pago</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:'Segoe UI',sans-serif;color:#18181b;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:#4f46e5;padding:32px 40px;">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Gym Planner Premium</h1>
+              <p style="margin:6px 0 0;color:#c7d2fe;font-size:14px;">Comprobante de pago</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:32px 40px;">
+              <p style="margin:0 0 24px;font-size:15px;">Hola <strong>{{username}}</strong>,</p>
+              <p style="margin:0 0 24px;font-size:15px;color:#52525b;">Tu pago fue procesado correctamente. Aquí está tu comprobante:</p>
+
+              <!-- Receipt table -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e4e4e7;border-radius:8px;overflow:hidden;margin-bottom:24px;">
+                <tr style="background:#f4f4f5;">
+                  <td style="padding:12px 16px;font-size:13px;color:#71717a;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Número de orden</td>
+                  <td style="padding:12px 16px;font-size:14px;font-weight:700;text-align:right;">{{orderNumber}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-size:13px;color:#71717a;border-top:1px solid #e4e4e7;">Plan</td>
+                  <td style="padding:12px 16px;font-size:14px;text-align:right;border-top:1px solid #e4e4e7;">{{plan}}</td>
+                </tr>
+                <tr style="background:#f4f4f5;">
+                  <td style="padding:12px 16px;font-size:13px;color:#71717a;border-top:1px solid #e4e4e7;">Monto</td>
+                  <td style="padding:12px 16px;font-size:14px;font-weight:600;text-align:right;border-top:1px solid #e4e4e7;">ARS {{amountArs}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-size:13px;color:#71717a;border-top:1px solid #e4e4e7;">Próximo cobro</td>
+                  <td style="padding:12px 16px;font-size:14px;text-align:right;border-top:1px solid #e4e4e7;">{{nextBillingDate}}</td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 8px;font-size:15px;color:#18181b;">Tu acceso Premium ya está activo. ¡Gracias por confiar en Gym Planner!</p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f4f4f5;padding:20px 40px;border-top:1px solid #e4e4e7;">
+              <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
+                Si tenés alguna consulta, contactá a nuestro equipo de soporte.<br>
+                Este correo fue generado automáticamente — por favor no respondas a este mensaje.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

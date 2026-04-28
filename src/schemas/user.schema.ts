@@ -1,5 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import { MembershipTier } from '../common/enums/membership-tier.enum';
+import { MembershipStatus } from '../common/enums/membership-status.enum';
 
 export type UserDocument = HydratedDocument<User>;
 
@@ -44,6 +46,26 @@ export class User {
 
   @Prop({ default: 0 })
   followingCount: number;
+
+  @Prop({
+    type: String,
+    enum: Object.values(MembershipTier),
+    default: MembershipTier.FREE,
+  })
+  membershipTier: MembershipTier;
+
+  @Prop({
+    type: String,
+    enum: Object.values(MembershipStatus),
+    default: MembershipStatus.ACTIVE,
+  })
+  membershipStatus: MembershipStatus;
+
+  @Prop({ type: Date, required: false })
+  membershipExpiresAt?: Date;
+
+  @Prop({ default: true })
+  autoRenew: boolean;
 
   @Prop({ type: Date })
   createdAt: Date;
