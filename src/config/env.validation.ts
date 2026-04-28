@@ -51,4 +51,35 @@ export const envValidationSchema = Joi.object({
   }),
 
   FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
+
+  // MercadoPago — optional in local/development, required in production
+  MERCADOPAGO_ACCESS_TOKEN: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+  MERCADOPAGO_WEBHOOK_SECRET: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+
+  // Mailer (SMTP) — optional in local/development, required in production
+  MAIL_HOST: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+  MAIL_PORT: Joi.number().default(587),
+  MAIL_USER: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+  MAIL_PASSWORD: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+  MAIL_FROM: Joi.string().email().default('noreply@gym-planner.com'),
 });

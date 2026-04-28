@@ -48,7 +48,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   async validate(payload: JwtPayload): Promise<JwtPayload> {
     // Verify the user still exists in the DB —
     // handles cases where a user was deleted after the token was issued
-    const user = await this.userModel.findById(payload.sub).exec();
+    const user = await this.userModel
+      .findById(payload.sub)
+      .select('isActive role membershipTier membershipStatus')
+      .lean()
+      .exec();
     if (!user) {
       throw new UnauthorizedException('User no longer exists');
     }
@@ -56,6 +60,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new ForbiddenException('Account is deactivated.');
     }
 
-    return { sub: payload.sub, email: payload.email, role: user.role };
+    return {
+      sub: payload.sub,
+      email: payload.email,
+      role: user.role,
+      membershipTier: user.membershipTier,
+      membershipStatus: user.membershipStatus,
+    };
   }
 }

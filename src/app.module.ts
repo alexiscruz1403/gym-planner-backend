@@ -20,6 +20,8 @@ import { FeedModule } from './modules/feed/feed.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RanksModule } from './modules/ranks/ranks.module';
+import { EmailModule } from './modules/email/email.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -67,6 +69,8 @@ import { RanksModule } from './modules/ranks/ranks.module';
     AdminModule,
     NotificationsModule,
     RanksModule,
+    EmailModule,
+    SubscriptionsModule,
   ],
   providers: [
     // Global JWT guard — protects all routes by default.

@@ -234,6 +234,21 @@ export class NotificationsService {
     });
   }
 
+  async createSystemNotificationForUser(
+    userId: string,
+    title: string,
+    body: string,
+  ): Promise<void> {
+    const isActive = await this.isUserActive(userId);
+    if (!isActive) return;
+
+    await this.persistAndEmit({
+      recipientId: userId,
+      type: NotificationType.SYSTEM,
+      data: { title, body },
+    });
+  }
+
   async createSystemBroadcast(
     title: string,
     body: string,

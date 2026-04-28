@@ -46,6 +46,10 @@ export class AuthService {
       role: user.role,
       isActive: user.isActive,
       isPrivate: user.isPrivate,
+      membershipTier: user.membershipTier,
+      membershipStatus: user.membershipStatus,
+      membershipExpiresAt: user.membershipExpiresAt,
+      autoRenew: user.autoRenew,
       createdAt: user.createdAt,
     };
   }
