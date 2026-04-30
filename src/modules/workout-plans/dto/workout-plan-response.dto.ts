@@ -18,6 +18,9 @@ export class ExerciseConfigResponseDto {
   reps: number | null;
 
   @ApiPropertyOptional({ nullable: true })
+  repsMax: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
   duration: number | null;
 
   @ApiPropertyOptional({ nullable: true })
@@ -66,6 +69,9 @@ export class WorkoutPlanResponseDto {
   @ApiProperty()
   isActive: boolean;
 
+  @ApiProperty({ default: false })
+  isAiGenerated: boolean;
+
   @ApiProperty({ type: [PlanDayResponseDto] })
   days: PlanDayResponseDto[];
 
@@ -85,6 +91,9 @@ export class WorkoutPlanSummaryDto {
 
   @ApiProperty()
   isActive: boolean;
+
+  @ApiProperty({ default: false })
+  isAiGenerated: boolean;
 
   @ApiProperty()
   daysCount: number;

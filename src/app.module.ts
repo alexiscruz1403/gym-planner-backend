@@ -22,6 +22,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { RanksModule } from './modules/ranks/ranks.module';
 import { EmailModule } from './modules/email/email.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     RanksModule,
     EmailModule,
     SubscriptionsModule,
+    AiModule,
   ],
   providers: [
     // Global JWT guard — protects all routes by default.
