@@ -31,6 +31,11 @@ export class ExerciseConfig {
   @Prop({ required: false, min: 1 })
   reps?: number;
 
+  // Upper bound for double-progression. Progression triggers when all sets hit this.
+  // Fallback: reps + 2 when not set.
+  @Prop({ required: false, min: 1 })
+  repsMax?: number;
+
   @Prop({ required: false, min: 1 })
   duration?: number; // seconds — for timed exercises (plank, etc.)
 
@@ -95,6 +100,9 @@ export class WorkoutPlan {
 
   @Prop({ default: false })
   isActive: boolean;
+
+  @Prop({ default: false })
+  isAiGenerated: boolean;
 
   @Prop({ type: [PlanDaySchema], default: [] })
   days: PlanDay[];

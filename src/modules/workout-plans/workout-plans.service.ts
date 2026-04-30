@@ -17,6 +17,10 @@ import {
 } from '../../schemas/workout-plan.schema';
 import { Exercise, ExerciseDocument } from '../../schemas/exercise.schema';
 import {
+  AiPlanProfile,
+  AiPlanProfileDocument,
+} from '../../schemas/ai-plan-profile.schema';
+import {
   CreateWorkoutPlanDto,
   CreateExerciseConfigDto,
 } from './dto/create-workout-plan.dto';
@@ -30,6 +34,7 @@ import {
 } from './dto/workout-plan-response.dto';
 
 const MAX_PLANS_PER_USER = 3;
+const MAX_AI_PLANS_PER_USER = 3;
 const PLANS_CACHE_TTL = 120; // 2 minutes in seconds
 
 @Injectable()
@@ -39,6 +44,8 @@ export class WorkoutPlansService {
     private readonly workoutPlanModel: Model<WorkoutPlanDocument>,
     @InjectModel(Exercise.name)
     private readonly exerciseModel: Model<ExerciseDocument>,
+    @InjectModel(AiPlanProfile.name)
+    private readonly aiPlanProfileModel: Model<AiPlanProfileDocument>,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
@@ -63,6 +70,7 @@ export class WorkoutPlansService {
       exerciseName: config.exerciseName,
       sets: config.sets,
       reps: config.reps ?? null,
+      repsMax: config.repsMax ?? null,
       duration: config.duration ?? null,
       weight: config.weight ?? null,
       weightUnit: config.weightUnit ?? WeightUnit.KG,
@@ -90,6 +98,7 @@ export class WorkoutPlansService {
       id: plan._id.toString(),
       name: plan.name,
       isActive: plan.isActive,
+      isAiGenerated: plan.isAiGenerated ?? false,
       days: plan.days.map((d) => this.toPlanDayResponse(d)),
       createdAt: plan.createdAt,
       updatedAt: plan.updatedAt,
@@ -101,6 +110,7 @@ export class WorkoutPlansService {
       id: plan._id.toString(),
       name: plan.name,
       isActive: plan.isActive,
+      isAiGenerated: plan.isAiGenerated ?? false,
       daysCount: plan.days.length,
       createdAt: plan.createdAt,
     };
@@ -207,7 +217,10 @@ export class WorkoutPlansService {
     userId: string,
   ): Promise<WorkoutPlanResponseDto> {
     const existingCount = await this.workoutPlanModel
-      .countDocuments({ userId: new Types.ObjectId(userId) })
+      .countDocuments({
+        userId: new Types.ObjectId(userId),
+        isAiGenerated: { $ne: true },
+      })
       .exec();
 
     if (existingCount >= MAX_PLANS_PER_USER) {
@@ -245,6 +258,10 @@ export class WorkoutPlansService {
       );
     }
 
+    if (plan.isAiGenerated) {
+      throw new ForbiddenException('AI-generated plans cannot be edited');
+    }
+
     if (dto.name !== undefined) {
       plan.name = dto.name;
     }
@@ -273,7 +290,12 @@ export class WorkoutPlansService {
       );
     }
 
-    await this.workoutPlanModel.findByIdAndDelete(id).exec();
+    await Promise.all([
+      this.workoutPlanModel.findByIdAndDelete(id).exec(),
+      this.aiPlanProfileModel
+        .deleteOne({ planId: new Types.ObjectId(id) })
+        .exec(),
+    ]);
 
     await this.invalidatePlanCache(userId, id);
     return { message: 'Plan deleted successfully' };
@@ -373,6 +395,7 @@ export class WorkoutPlansService {
           bilateral,
           sets: exerciseDto.sets,
           reps: bilateral ? exerciseDto.reps : undefined,
+          repsMax: bilateral ? exerciseDto.repsMax : undefined,
           duration: bilateral ? exerciseDto.duration : undefined,
           weight: bilateral ? exerciseDto.weight : undefined,
           weightUnit: exerciseDto.weightUnit ?? WeightUnit.KG,
@@ -391,5 +414,159 @@ export class WorkoutPlansService {
     duration?: number;
   }): boolean {
     return side.reps != null || side.duration != null;
+  }
+
+  // ─── AI-specific methods ─────────────────────────────────────────────────────
+
+  async createAiPlan(
+    dto: CreateWorkoutPlanDto,
+    userId: string,
+  ): Promise<WorkoutPlanDocument> {
+    const existingCount = await this.workoutPlanModel
+      .countDocuments({
+        userId: new Types.ObjectId(userId),
+        isAiGenerated: true,
+      })
+      .exec();
+
+    if (existingCount >= MAX_AI_PLANS_PER_USER) {
+      throw new UnprocessableEntityException(
+        'Maximum of 3 AI-generated plans allowed per user',
+      );
+    }
+
+    const days = await this.buildDays(dto.days ?? []);
+
+    const plan = await this.workoutPlanModel.create({
+      userId: new Types.ObjectId(userId),
+      name: dto.name,
+      days,
+      isAiGenerated: true,
+    });
+
+    await this.invalidatePlanCache(userId);
+    return plan;
+  }
+
+  async applyExerciseChanges(
+    planId: string,
+    userId: string,
+    changes: Map<
+      string,
+      {
+        weight?: number;
+        sets?: number;
+        reps?: number;
+        repsMax?: number;
+        leftWeight?: number;
+        rightWeight?: number;
+      }
+    >,
+  ): Promise<void> {
+    const plan = await this.workoutPlanModel.findById(planId).exec();
+
+    if (!plan) {
+      throw new NotFoundException('Plan not found');
+    }
+
+    if (plan.userId.toString() !== userId) {
+      throw new ForbiddenException(
+        'Plan does not belong to the authenticated user',
+      );
+    }
+
+    for (const day of plan.days) {
+      for (const exercise of day.exercises) {
+        const change = changes.get(exercise.exerciseId.toString());
+        if (!change) continue;
+        if (change.sets !== undefined) exercise.sets = change.sets;
+        if (change.reps !== undefined) exercise.reps = change.reps;
+        if (change.repsMax !== undefined) exercise.repsMax = change.repsMax;
+        if (!exercise.bilateral) {
+          // Unilateral: patch per-side weights
+          if (change.leftWeight !== undefined && exercise.left) {
+            exercise.left.weight = change.leftWeight;
+          }
+          if (change.rightWeight !== undefined && exercise.right) {
+            exercise.right.weight = change.rightWeight;
+          }
+        } else {
+          if (change.weight !== undefined) exercise.weight = change.weight;
+        }
+      }
+    }
+
+    plan.markModified('days');
+    await plan.save();
+    await this.invalidatePlanCache(userId, planId);
+  }
+
+  async copyAiPlan(
+    id: string,
+    userId: string,
+    name?: string,
+  ): Promise<WorkoutPlanResponseDto> {
+    const original = await this.workoutPlanModel.findById(id).exec();
+
+    if (!original) {
+      throw new NotFoundException('Plan not found');
+    }
+
+    if (original.userId.toString() !== userId) {
+      throw new ForbiddenException(
+        'Plan does not belong to the authenticated user',
+      );
+    }
+
+    if (!original.isAiGenerated) {
+      throw new ForbiddenException(
+        'Only AI-generated plans can be copied with this endpoint',
+      );
+    }
+
+    const regularCount = await this.workoutPlanModel
+      .countDocuments({
+        userId: new Types.ObjectId(userId),
+        isAiGenerated: { $ne: true },
+      })
+      .exec();
+
+    if (regularCount >= MAX_PLANS_PER_USER) {
+      throw new UnprocessableEntityException(
+        'Maximum of 3 workout plans allowed per user',
+      );
+    }
+
+    // Deep-clone days, stripping subdocument _ids so Mongoose generates new ones
+    const clonedDays = original.days.map((day) => ({
+      dayOfWeek: day.dayOfWeek,
+      dayName: day.dayName,
+      exercises: day.exercises.map((ex) => ({
+        exerciseId: ex.exerciseId,
+        exerciseName: ex.exerciseName,
+        bilateral: ex.bilateral,
+        sets: ex.sets,
+        reps: ex.reps,
+        repsMax: ex.repsMax,
+        duration: ex.duration,
+        weight: ex.weight,
+        weightUnit: ex.weightUnit,
+        left: ex.left ? { ...ex.left } : undefined,
+        right: ex.right ? { ...ex.right } : undefined,
+        rest: ex.rest,
+        notes: ex.notes,
+        supersetGroupId: ex.supersetGroupId,
+      })),
+    }));
+
+    const copy = await this.workoutPlanModel.create({
+      userId: new Types.ObjectId(userId),
+      name: name ?? `Copy of ${original.name}`,
+      days: clonedDays,
+      isAiGenerated: false,
+    });
+
+    await this.invalidatePlanCache(userId);
+    return this.toResponseDto(copy);
   }
 }

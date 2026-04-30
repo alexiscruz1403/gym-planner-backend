@@ -18,6 +18,7 @@ import {
 import { WorkoutPlansService } from './workout-plans.service';
 import { CreateWorkoutPlanDto } from './dto/create-workout-plan.dto';
 import { UpdateWorkoutPlanDto } from './dto/update-workout-plan.dto';
+import { CopyPlanDto } from './dto/copy-plan.dto';
 import {
   WorkoutPlanResponseDto,
   WorkoutPlanSummaryDto,
@@ -123,5 +124,30 @@ export class WorkoutPlansController {
     @CurrentUser() user: JwtPayload,
   ): Promise<{ message: string; activePlanId: string }> {
     return this.workoutPlansService.activate(id, user.sub);
+  }
+
+  @Post(':id/copy')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Copy an AI-generated plan as a regular plan',
+    description:
+      'Creates an exact clone of the AI plan as a regular (non-AI) plan, occupying one of the 3 regular plan slots.',
+  })
+  @ApiResponse({ status: 201, type: WorkoutPlanResponseDto })
+  @ApiResponse({
+    status: 403,
+    description: 'Plan does not belong to the user or is not AI-generated',
+  })
+  @ApiResponse({ status: 404, description: 'Plan not found' })
+  @ApiResponse({
+    status: 422,
+    description: 'Maximum of 3 regular workout plans already reached',
+  })
+  copyAiPlan(
+    @Param('id') id: string,
+    @Body() dto: CopyPlanDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<WorkoutPlanResponseDto> {
+    return this.workoutPlansService.copyAiPlan(id, user.sub, dto.name);
   }
 }

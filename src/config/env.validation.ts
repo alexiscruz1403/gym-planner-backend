@@ -82,4 +82,11 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.optional(),
   }),
   MAIL_FROM: Joi.string().email().default('noreply@gym-planner.com'),
+
+  // Google Gemini AI — optional in local/development, required in production
+  GEMINI_API_KEY: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
 });

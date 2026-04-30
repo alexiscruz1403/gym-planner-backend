@@ -42,6 +42,16 @@ export class CreateExerciseConfigDto {
 
   @ApiPropertyOptional({
     description:
+      'Upper rep bound for double-progression. When all sets hit this number, weight increases. Defaults to reps + 2 if omitted.',
+    minimum: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  repsMax?: number;
+
+  @ApiPropertyOptional({
+    description:
       'Duration in seconds. Required if reps is absent and the exercise is bilateral. Ignored when left/right are provided (unilateral).',
   })
   @ValidateIf((o: CreateExerciseConfigDto) => !o.reps && !o.left && !o.right)
