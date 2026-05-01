@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { MembershipStatus, MembershipTier } from 'src/common/enums';
 
 export class AdminUserResponseDto {
   @ApiProperty()
@@ -24,6 +25,12 @@ export class AdminUserResponseDto {
 
   @ApiProperty()
   followingCount: number;
+
+  @ApiProperty()
+  membershipTier: MembershipTier;
+
+  @ApiProperty()
+  membershipStatus: MembershipStatus;
 
   @ApiProperty()
   createdAt: Date;

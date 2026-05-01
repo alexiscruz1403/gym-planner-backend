@@ -3,12 +3,12 @@ import {
   IsEnum,
   IsBoolean,
   IsOptional,
-  IsUrl,
   IsArray,
   ArrayMinSize,
   MinLength,
   MaxLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MuscleGroup } from '../../../common/enums/muscle-group.enum';
 import { LoadType } from '../../../common/enums/load-type.enum';
@@ -25,6 +25,7 @@ export class CreateExerciseDto {
     isArray: true,
     example: ['quads', 'glutes'],
   })
+  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
   @IsArray()
   @ArrayMinSize(1)
   @IsEnum(MuscleGroup, { each: true })
@@ -36,6 +37,7 @@ export class CreateExerciseDto {
     example: ['hamstrings'],
   })
   @IsOptional()
+  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
   @IsArray()
   @IsEnum(MuscleGroup, { each: true })
   musclesSecondary?: MuscleGroup[];
@@ -49,16 +51,15 @@ export class CreateExerciseDto {
   trackingType: 'reps' | 'duration';
 
   @ApiProperty({ example: true })
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   bilateral: boolean;
 
-  @ApiPropertyOptional({ example: 'https://example.com/squat.gif' })
+  @ApiProperty()
   @IsOptional()
-  @IsUrl()
   gifUrl?: string;
 
-  @ApiPropertyOptional({ example: 'https://example.com/squat.mp4' })
+  @ApiProperty()
   @IsOptional()
-  @IsUrl()
   videoUrl?: string;
 }
