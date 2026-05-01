@@ -22,6 +22,10 @@ import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
 import { AdminUserResponseDto } from './dto/admin-user-response.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { GiftMembershipDto } from './dto/gift-membership.dto';
+import { RevokeMembershipDto } from './dto/revoke-membership.dto';
+import { MembershipAuditQueryDto } from './dto/membership-audit-query.dto';
+import { MembershipAuditResponseDto } from './dto/membership-audit-response.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import {
@@ -87,6 +91,54 @@ export class AdminController {
     @CurrentUser() requester: JwtPayload,
   ): Promise<AdminUserResponseDto> {
     return this.adminService.setUserRole(targetId, dto, requester.sub);
+  }
+
+  @Post('users/:id/membership/gift')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Gift a premium membership to a user (admin only)' })
+  @ApiParam({ name: 'id', description: 'Target user MongoDB ObjectId' })
+  @ApiResponse({ status: 200, description: 'Membership gifted successfully' })
+  @ApiResponse({ status: 403, description: 'Admin role required' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  giftMembership(
+    @Param('id') targetId: string,
+    @Body() dto: GiftMembershipDto,
+    @CurrentUser() requester: JwtPayload,
+  ): Promise<void> {
+    return this.adminService.giftMembership(targetId, requester.sub, dto);
+  }
+
+  @Post('users/:id/membership/revoke')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Revoke a premium membership from a user (admin only)',
+  })
+  @ApiParam({ name: 'id', description: 'Target user MongoDB ObjectId' })
+  @ApiResponse({ status: 200, description: 'Membership revoked successfully' })
+  @ApiResponse({ status: 400, description: 'User is already on the Free tier' })
+  @ApiResponse({ status: 403, description: 'Admin role required' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  revokeMembership(
+    @Param('id') targetId: string,
+    @Body() dto: RevokeMembershipDto,
+    @CurrentUser() requester: JwtPayload,
+  ): Promise<void> {
+    return this.adminService.revokeMembership(targetId, requester.sub, dto);
+  }
+
+  @Get('membership/audits')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'List membership audit records with optional date-range filter (admin only)',
+  })
+  @ApiResponse({ status: 200, type: [MembershipAuditResponseDto] })
+  @ApiResponse({ status: 403, description: 'Admin role required' })
+  listMembershipAudits(@Query() query: MembershipAuditQueryDto): Promise<{
+    data: MembershipAuditResponseDto[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+  }> {
+    return this.adminService.listMembershipAudits(query);
   }
 
   @Post('notifications')
